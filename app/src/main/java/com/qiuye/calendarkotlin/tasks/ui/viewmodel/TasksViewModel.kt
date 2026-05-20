@@ -1,0 +1,75 @@
+﻿package com.qiuye.calendarkotlin.tasks.ui.viewmodel
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.qiuye.calendarkotlin.tasks.TasksGraph
+import com.qiuye.calendarkotlin.tasks.data.ReminderEntity
+import com.qiuye.calendarkotlin.tasks.data.combineDateAndMinutes
+import com.qiuye.calendarkotlin.tasks.service.SaveReminderResult
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
+
+class TasksViewModel(application: Application) : AndroidViewModel(application) {
+    private val service = TasksGraph.reminderService(application)
+
+    private val clockFlow = flow {
+        while (true) {
+            emit(System.currentTimeMillis())
+            delay(60_000)
+        }
+    }.onStart { emit(System.currentTimeMillis()) }
+
+    val reminders = combine(service.observeReminders(), clockFlow) { reminders, now ->
+        reminders.sortedWith(
+            compareBy<ReminderEntity> { reminderRank(it, now) }
+                .thenBy { it.scheduledAtMillis }
+                .thenByDescending { it.updatedAtMillis }
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun observeReminder(id: Long): Flow<ReminderEntity?> = service.observeReminder(id)
+
+    suspend fun loadReminder(id: Long): ReminderEntity? = service.getReminder(id)
+
+    fun canScheduleExactAlarms(): Boolean = service.canScheduleExactAlarms()
+
+    suspend fun saveReminder(
+        reminderId: Long?,
+        title: String,
+        note: String,
+        dateStartMillis: Long,
+        minutesOfDay: Int,
+        allowPast: Boolean
+    ): SaveReminderResult {
+        val scheduledAtMillis = combineDateAndMinutes(dateStartMillis, minutesOfDay)
+        return service.saveReminder(reminderId, title, note, scheduledAtMillis, allowPast)
+    }
+
+    suspend fun toggleCompletion(reminderId: Long, completed: Boolean) {
+        service.setReminderCompleted(reminderId, completed)
+    }
+
+    suspend fun deleteReminder(reminderId: Long) {
+        service.deleteReminder(reminderId)
+    }
+
+    suspend fun rebuildSchedules() {
+        service.restoreSchedules()
+    }
+
+    private fun reminderRank(reminder: ReminderEntity, now: Long): Int {
+        return when {
+            reminder.isCompleted -> 2
+            reminder.scheduledAtMillis <= now -> 1
+            else -> 0
+        }
+    }
+}
+
+

@@ -1,0 +1,15 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+.gradle/
+.gradle-temp/
+local.properties
+app/build/
+.idea/
+.kotlin/
+.gradle-home/
