@@ -12,12 +12,19 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -224,24 +231,6 @@ private fun CalendarScreen(
                     }
                 },
                 actions = {
-                    TextButton(
-                        onClick = onOpenRemindersCenter,
-                        modifier = Modifier.testTag("btn_reminders"),
-                    ) {
-                        Text("任务提醒")
-                    }
-                    TextButton(
-                        onClick = onOpenNotes,
-                        modifier = Modifier.testTag("btn_notes"),
-                    ) {
-                        Text("备忘录")
-                    }
-                    TextButton(
-                        onClick = onOpenDiaryList,
-                        modifier = Modifier.testTag("btn_diary"),
-                    ) {
-                        Text("日记")
-                    }
                     DateJumpButton(onDatePicked = onJumpToDate)
                     IconButton(
                         onClick = onOpenSettings,
@@ -252,6 +241,84 @@ private fun CalendarScreen(
                 },
             )
         },
+        bottomBar = {
+            val isCalendarActive = !uiState.isRemindersVisible && !uiState.isNotesVisible && !uiState.isDiaryListVisible
+            NavigationBar(
+                containerColor = palette.background.last().copy(alpha = 0.95f),
+            ) {
+                NavigationBarItem(
+                    selected = isCalendarActive,
+                    onClick = {
+                        if (uiState.isRemindersVisible) onCloseRemindersCenter()
+                        if (uiState.isNotesVisible) onCloseNotes()
+                        if (uiState.isDiaryListVisible) onCloseDiaryList()
+                    },
+                    icon = { Icon(Icons.Rounded.DateRange, contentDescription = "日历") },
+                    label = { Text("日历") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = palette.accent,
+                        selectedTextColor = palette.accent,
+                        indicatorColor = palette.accent.copy(alpha = 0.15f),
+                        unselectedIconColor = palette.accent.copy(alpha = 0.6f),
+                        unselectedTextColor = palette.accent.copy(alpha = 0.6f),
+                    )
+                )
+                NavigationBarItem(
+                    selected = uiState.isRemindersVisible,
+                    onClick = {
+                        if (!uiState.isRemindersVisible) {
+                            onOpenRemindersCenter()
+                        }
+                    },
+                    icon = { Icon(Icons.Rounded.Notifications, contentDescription = "任务提醒") },
+                    label = { Text("任务") },
+                    modifier = Modifier.testTag("btn_reminders"),
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = palette.accent,
+                        selectedTextColor = palette.accent,
+                        indicatorColor = palette.accent.copy(alpha = 0.15f),
+                        unselectedIconColor = palette.accent.copy(alpha = 0.6f),
+                        unselectedTextColor = palette.accent.copy(alpha = 0.6f),
+                    )
+                )
+                NavigationBarItem(
+                    selected = uiState.isDiaryListVisible,
+                    onClick = {
+                        if (!uiState.isDiaryListVisible) {
+                            onOpenDiaryList()
+                        }
+                    },
+                    icon = { Icon(Icons.Rounded.EditNote, contentDescription = "日记") },
+                    label = { Text("日记") },
+                    modifier = Modifier.testTag("btn_diary"),
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = palette.accent,
+                        selectedTextColor = palette.accent,
+                        indicatorColor = palette.accent.copy(alpha = 0.15f),
+                        unselectedIconColor = palette.accent.copy(alpha = 0.6f),
+                        unselectedTextColor = palette.accent.copy(alpha = 0.6f),
+                    )
+                )
+                NavigationBarItem(
+                    selected = uiState.isNotesVisible,
+                    onClick = {
+                        if (!uiState.isNotesVisible) {
+                            onOpenNotes()
+                        }
+                    },
+                    icon = { Icon(Icons.AutoMirrored.Rounded.List, contentDescription = "备忘录") },
+                    label = { Text("备忘录") },
+                    modifier = Modifier.testTag("btn_notes"),
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = palette.accent,
+                        selectedTextColor = palette.accent,
+                        indicatorColor = palette.accent.copy(alpha = 0.15f),
+                        unselectedIconColor = palette.accent.copy(alpha = 0.6f),
+                        unselectedTextColor = palette.accent.copy(alpha = 0.6f),
+                    )
+                )
+            }
+        }
     ) { innerPadding ->
         Box(
             modifier = Modifier
