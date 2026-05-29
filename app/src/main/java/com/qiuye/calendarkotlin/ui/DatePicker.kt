@@ -1,4 +1,4 @@
-﻿package com.qiuye.calendarkotlin.ui
+package com.qiuye.calendarkotlin.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
@@ -343,18 +343,13 @@ private data class WheelScrollPosition(
 private fun chineseMonthName(month: Int): String = "${chineseNumber(month)}月"
 
 private fun chineseDayName(day: Int): String = when (day) {
-    10 -> "初十"
-    20 -> "二十"
-    30 -> "三十"
-    else -> {
-        val prefix = when {
-            day < 10 -> "初"
-            day < 20 -> "十"
-            day < 30 -> "廿"
-            else -> "三十"
-        }
-        prefix + chineseNumber(day % 10)
-    }
+    in 1..10 -> "${chineseNumber(day)}日"
+    in 11..19 -> "十${chineseNumber(day % 10)}日"
+    20 -> "二十日"
+    in 21..29 -> "二十${chineseNumber(day % 10)}日"
+    30 -> "三十日"
+    31 -> "三十一日"
+    else -> "${day}日"
 }
 
 private fun chineseNumber(value: Int): String = when (value) {

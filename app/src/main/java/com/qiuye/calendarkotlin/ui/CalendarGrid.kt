@@ -136,18 +136,28 @@ private fun DayCellCard(
                         .height(16.dp),
                 ) {
                     if (dayCell.shift != null && shiftPalette != null) {
+                        val hasHoliday = dayCell.holiday != null
+                        val shape = if (hasHoliday) {
+                            RoundedCornerShape(bottomEnd = 8.dp, topStart = 12.dp)
+                        } else {
+                            RoundedCornerShape(bottomEnd = 10.dp, topStart = 16.dp)
+                        }
+                        val horizontalPadding = if (hasHoliday) 4.5.dp else 5.5.dp
+                        val verticalPadding = if (hasHoliday) 1.dp else 1.5.dp
+                        val fontSize = if (hasHoliday) 9.sp else 10.5.sp
+
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopStart)
-                                .clip(RoundedCornerShape(bottomEnd = 8.dp, topStart = 10.dp))
+                                .clip(shape)
                                 .background(shiftPalette.container)
-                                .padding(horizontal = 5.dp, vertical = 1.5.dp),
+                                .padding(horizontal = horizontalPadding, vertical = verticalPadding),
                         ) {
                             Text(
                                 text = dayCell.shift.monthGridLabel(),
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 9.5.sp,
-                                    lineHeight = 9.5.sp,
+                                    fontSize = fontSize,
+                                    lineHeight = fontSize,
                                     fontWeight = FontWeight.Bold,
                                 ),
                                 color = shiftPalette.content,
@@ -159,7 +169,7 @@ private fun DayCellCard(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .clip(RoundedCornerShape(bottomStart = 8.dp, topEnd = 10.dp))
+                                .clip(RoundedCornerShape(bottomStart = 8.dp, topEnd = 12.dp))
                                 .background(
                                     if (dayCell.holiday.isWorkday) Color(0xFFE7EDF4) else Color(0xFFFFE2E2),
                                 )

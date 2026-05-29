@@ -123,7 +123,7 @@ fun RemindersBottomSheet(
             val keywordMatches = keyword.isBlank() ||
                 reminder.title.contains(keyword, ignoreCase = true) ||
                 reminder.note.contains(keyword, ignoreCase = true) ||
-                formatDate(reminder.scheduledAtMillis).contains(keyword, ignoreCase = true)
+                dateMatchesKeyword(reminderLocalDate, keyword)
                 
             monthMatches && scopeMatches && keywordMatches
         }
@@ -463,4 +463,31 @@ private fun ReminderItemCard(
             }
         }
     }
+}
+
+private fun dateMatchesKeyword(date: LocalDate, keyword: String): Boolean {
+    val cleanKeyword = keyword.trim().replace("-", "").replace("/", "").replace(".", "").replace(" ", "")
+    if (cleanKeyword.isEmpty()) return false
+
+    val year = date.year.toString()
+    val month = date.monthValue.toString()
+    val monthZero = if (date.monthValue < 10) "0$month" else month
+    val day = date.dayOfMonth.toString()
+    val dayZero = if (date.dayOfMonth < 10) "0$day" else day
+
+    val candidates = listOf(
+        "$year$monthZero$dayZero",
+        "$year$month$dayZero",
+        "$year$monthZero$day",
+        "$year$month$day",
+        "$year$monthZero",
+        "$year$month",
+        "$monthZero$dayZero",
+        "$month$day",
+    )
+
+    val originalClean = date.toString().replace("-", "")
+    if (originalClean.contains(cleanKeyword)) return true
+
+    return candidates.any { it.contains(cleanKeyword) }
 }
