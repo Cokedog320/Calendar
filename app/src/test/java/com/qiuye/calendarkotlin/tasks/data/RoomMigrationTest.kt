@@ -8,6 +8,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.robolectric.annotation.Config
 import java.io.IOException
+import org.junit.Assert.*
 
 class RoomMigrationTest : BaseUnitTest() {
 
