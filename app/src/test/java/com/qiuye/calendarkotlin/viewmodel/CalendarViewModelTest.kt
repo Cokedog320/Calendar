@@ -190,6 +190,63 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun saveDayDetailWithMultipleDayDuration() = runTest {
+        val targetDate = LocalDate.of(2026, 6, 15)
+        val repository = FakeCalendarDataStore(CalendarData(showLunar = false))
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            val overrideShift = defaultPattern.first()
+            viewModel.saveDayDetail(targetDate, "集体修假", overrideShift, durationDays = 5)
+            advanceUntilIdle()
+
+            // Note should only be on the first day
+            assertEquals("集体修假", repository.data.value.notes[targetDate.toString()])
+            for (i in 1 until 5) {
+                assertNull(repository.data.value.notes[targetDate.plusDays(i.toLong()).toString()])
+            }
+
+            // Override shift should be applied on all 5 days
+            for (i in 0 until 5) {
+                assertEquals(overrideShift, repository.data.value.overrides[targetDate.plusDays(i.toLong()).toString()])
+            }
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun saveDayDetailClearsMultipleDayOverrides() = runTest {
+        val targetDate = LocalDate.of(2026, 6, 15)
+        val initialOverrides = (0 until 5).associate { i ->
+            targetDate.plusDays(i.toLong()).toString() to defaultPattern.first()
+        }
+        val repository = FakeCalendarDataStore(CalendarData(
+            showLunar = false,
+            overrides = initialOverrides
+        ))
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            // Save with overrideShift = null to clear overrides for all 5 days
+            viewModel.saveDayDetail(targetDate, "", null, durationDays = 5)
+            advanceUntilIdle()
+
+            for (i in 0 until 5) {
+                assertNull(repository.data.value.overrides[targetDate.plusDays(i.toLong()).toString()])
+            }
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
     fun uiStateUsesWhileSubscribedAndResumesCorrectly() = runTest {
         val repository = FakeCalendarDataStore(CalendarData(showLunar = false))
         val viewModel = CalendarViewModel(repository)

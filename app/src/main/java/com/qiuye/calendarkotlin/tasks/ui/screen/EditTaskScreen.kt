@@ -47,6 +47,11 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material.icons.rounded.Settings
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -157,12 +162,31 @@ fun EditTaskScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var pendingSave by remember { mutableStateOf(false) }
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    val sharedPrefs = remember { context.getSharedPreferences("reminder_settings", Context.MODE_PRIVATE) }
+    var morningHour by remember { mutableStateOf(sharedPrefs.getInt("morning_hour", 9)) }
+    var morningMinute by remember { mutableStateOf(sharedPrefs.getInt("morning_minute", 0)) }
+    var afternoonHour by remember { mutableStateOf(sharedPrefs.getInt("afternoon_hour", 13)) }
+    var afternoonMinute by remember { mutableStateOf(sharedPrefs.getInt("afternoon_minute", 0)) }
+    var eveningHour by remember { mutableStateOf(sharedPrefs.getInt("evening_hour", 20)) }
+    var eveningMinute by remember { mutableStateOf(sharedPrefs.getInt("evening_minute", 0)) }
+    var showCustomPresetsDialog by remember { mutableStateOf(false) }
+    var activePresetEditing by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(reminderId) {
         if (reminderId == null) {
-            val (roundedDateMillis, roundedMinutes) = roundedUpFiveMinuteSlot()
-            dateStartMillis = startOfDayMillis(initialDateMillis ?: roundedDateMillis)
-            minutesOfDay = roundedMinutes
+            val todayStart = startOfDayMillis(System.currentTimeMillis())
+            val targetStart = startOfDayMillis(initialDateMillis ?: System.currentTimeMillis())
+            dateStartMillis = targetStart
+            
+            val initialMorningHour = sharedPrefs.getInt("morning_hour", 9)
+            val initialMorningMinute = sharedPrefs.getInt("morning_minute", 0)
+
+            if (targetStart != todayStart) {
+                minutesOfDay = initialMorningHour * 60 + initialMorningMinute
+            } else {
+                val (roundedDateMillis, roundedMinutes) = roundedUpFiveMinuteSlot()
+                minutesOfDay = roundedMinutes
+            }
             loadedReminder = true
             return@LaunchedEffect
         }

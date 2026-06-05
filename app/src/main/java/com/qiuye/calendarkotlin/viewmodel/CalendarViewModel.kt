@@ -241,13 +241,33 @@ class CalendarViewModel internal constructor(
         errorMessage.value = null
     }
 
-    fun saveDayDetail(date: LocalDate, note: String, overrideShift: ShiftDefinition?) {
+    fun saveDayDetail(date: LocalDate, note: String, overrideShift: ShiftDefinition?, durationDays: Int = 1) {
         viewModelScope.launch {
+            val current = repository.getCurrentData()
+            val updatedNotes = current.notes.toMutableMap()
+            val updatedOverrides = current.overrides.toMutableMap()
+
             val dateKey = date.toStorageKey()
-            repository.updateDetail(
-                dateKey = dateKey,
-                note = note,
-                overrideShift = overrideShift,
+            if (note.isBlank()) {
+                updatedNotes.remove(dateKey)
+            } else {
+                updatedNotes[dateKey] = note.trim()
+            }
+
+            for (i in 0 until durationDays) {
+                val targetDateKey = date.plusDays(i.toLong()).toStorageKey()
+                if (overrideShift == null) {
+                    updatedOverrides.remove(targetDateKey)
+                } else {
+                    updatedOverrides[targetDateKey] = overrideShift
+                }
+            }
+
+            repository.replaceAllData(
+                current.copy(
+                    notes = updatedNotes,
+                    overrides = updatedOverrides
+                )
             )
             dismissDaySheet(clearSelection = true)
         }

@@ -71,7 +71,7 @@ fun DayDetailBottomSheet(
     holidayLabel: String?,
     tasks: List<ReminderEntity>,
     onDismiss: () -> Unit,
-    onSave: (String, ShiftDefinition?) -> Unit,
+    onSave: (String, ShiftDefinition?, Int) -> Unit,
     onToggleTask: (ReminderEntity) -> Unit,
     onDeleteTask: (ReminderEntity) -> Unit,
     onOpenReminder: (ReminderEntity) -> Unit,
@@ -80,6 +80,7 @@ fun DayDetailBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var draftNote by remember(date, note) { mutableStateOf(note) }
     var selectedOverride by remember(date, overrideShift) { mutableStateOf(overrideShift) }
+    var durationDays by remember(date) { mutableStateOf(1) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -163,6 +164,44 @@ fun DayDetailBottomSheet(
                 )
             }
 
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "持续天数",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilledIconButton(
+                        onClick = { if (durationDays > 1) durationDays-- },
+                        modifier = Modifier.size(32.dp),
+                        enabled = durationDays > 1
+                    ) {
+                        Text("-", style = MaterialTheme.typography.titleMedium)
+                    }
+                    Text(
+                        text = "$durationDays 天",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                    FilledIconButton(
+                        onClick = { durationDays++ },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Text("+", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             Row(
@@ -243,7 +282,7 @@ fun DayDetailBottomSheet(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 FilledIconButton(
-                    onClick = { onSave(draftNote, selectedOverride) },
+                    onClick = { onSave(draftNote, selectedOverride, durationDays) },
                     modifier = Modifier.testTag("btn_day_save"),
                 ) {
                     Icon(Icons.Rounded.Check, contentDescription = "保存")

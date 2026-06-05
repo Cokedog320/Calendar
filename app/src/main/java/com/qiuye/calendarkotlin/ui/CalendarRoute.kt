@@ -222,7 +222,7 @@ private fun CalendarScreen(
     onSelectDate: (java.time.LocalDate) -> Unit,
     onOpenSelectedDayDetail: () -> Unit,
     onCloseDaySheet: () -> Unit,
-    onSaveDayDetail: (java.time.LocalDate, String, com.qiuye.calendarkotlin.model.ShiftDefinition?) -> Unit,
+    onSaveDayDetail: (java.time.LocalDate, String, com.qiuye.calendarkotlin.model.ShiftDefinition?, Int) -> Unit,
     onSaveSettings: (String?, String?, List<com.qiuye.calendarkotlin.model.ShiftDefinition>, Boolean) -> Unit,
     onClearOverrides: () -> Unit,
     onJumpToDate: (java.time.LocalDate) -> Unit,
@@ -529,7 +529,7 @@ private fun CalendarScreen(
                         holidayLabel = selectedCell.holiday?.label,
                         tasks = dateReminders,
                         onDismiss = onCloseDaySheet,
-                        onSave = { note, shift -> onSaveDayDetail(selected, note, shift) },
+                        onSave = { note, shift, duration -> onSaveDayDetail(selected, note, shift, duration) },
                         onToggleTask = onToggleTask,
                         onDeleteTask = onDeleteTask,
                         onOpenReminder = { reminder ->
