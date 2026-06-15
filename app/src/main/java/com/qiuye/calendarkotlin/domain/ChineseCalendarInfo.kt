@@ -43,7 +43,9 @@ data class LunarDisplay(
 
 object ChineseCalendarInfo {
     private val json = Json { ignoreUnknownKeys = true }
+    @Volatile
     private var holidayPeriods: List<HolidayPeriod> = emptyList()
+    @Volatile
     private var workdays: Map<LocalDate, String> = emptyMap()
 
     /**
@@ -53,7 +55,7 @@ object ChineseCalendarInfo {
      */
     fun init(context: Context) {
         try {
-            val raw = context.assets.open("holidays.json").bufferedReader().readText()
+            val raw = context.assets.open("holidays.json").bufferedReader().use { it.readText() }
             val yearDataList = json.decodeFromString<List<YearHolidayData>>(raw)
 
             holidayPeriods = yearDataList.flatMap { yearData ->

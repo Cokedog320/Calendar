@@ -58,6 +58,8 @@ fun SettingsBottomSheet(
     onDismiss: () -> Unit,
     onClearOverrides: () -> Unit,
     onSave: (String?, String?, List<ShiftDefinition>, Boolean) -> Unit,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var startDate by remember(calendarData.cycleStartDate) { mutableStateOf(calendarData.cycleStartDate.orEmpty()) }
@@ -147,6 +149,35 @@ fun SettingsBottomSheet(
             item { HorizontalDivider() }
             item {
                 Text(
+                    text = "数据管理",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = onExport,
+                        modifier = Modifier.weight(1f)
+                            .testTag("btn_settings_export"),
+                    ) {
+                        Text("导出备份")
+                    }
+                    OutlinedButton(
+                        onClick = onImport,
+                        modifier = Modifier.weight(1f)
+                            .testTag("btn_settings_import"),
+                    ) {
+                        Text("导入数据")
+                    }
+                }
+            }
+            item { HorizontalDivider() }
+            item {
+                Text(
                     text = "排班规律",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
@@ -194,7 +225,7 @@ fun SettingsBottomSheet(
                             onSave(
                                 startDate.ifBlank { null },
                                 endDate.ifBlank { null },
-                                pattern.toList().ifEmpty { defaultPattern() },
+                                pattern.toList().ifEmpty { defaultPattern },
                                 showLunar,
                             )
                         },

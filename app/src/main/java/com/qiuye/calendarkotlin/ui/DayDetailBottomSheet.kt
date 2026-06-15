@@ -28,7 +28,6 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -45,6 +44,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +58,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.TextButton
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -72,15 +73,19 @@ fun DayDetailBottomSheet(
     holidayLabel: String?,
     tasks: List<ReminderEntity>,
     onDismiss: () -> Unit,
-    onSave: (String, ShiftDefinition?) -> Unit,
+    onSave: (String, ShiftDefinition?, Int) -> Unit,
     onToggleTask: (ReminderEntity) -> Unit,
     onDeleteTask: (ReminderEntity) -> Unit,
     onOpenReminder: (ReminderEntity) -> Unit,
     onAddFullReminder: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coroutineScope = rememberCoroutineScope()
     var draftNote by remember(date, note) { mutableStateOf(note) }
     var selectedOverride by remember(date, overrideShift) { mutableStateOf(overrideShift) }
+    var durationDays by remember(date) { mutableStateOf(1) }
+
+    val uniqueShifts = remember(pattern) { pattern.distinctBy { it.name } }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -148,10 +153,10 @@ fun DayDetailBottomSheet(
                     palette = null,
                     onClick = { selectedOverride = null },
                 )
-                pattern.forEach { shift ->
+                uniqueShifts.forEach { shift ->
                     OverrideChip(
                         label = shift.name,
-                        selected = selectedOverride?.id == shift.id,
+                        selected = selectedOverride?.name == shift.name,
                         palette = shift.color.palette(),
                         onClick = { selectedOverride = shift },
                     )
@@ -162,6 +167,44 @@ fun DayDetailBottomSheet(
                     palette = vacationShift.color.palette(),
                     onClick = { selectedOverride = vacationShift },
                 )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "持续天数",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilledIconButton(
+                        onClick = { if (durationDays > 1) durationDays-- },
+                        modifier = Modifier.size(32.dp),
+                        enabled = durationDays > 1
+                    ) {
+                        Text("-", style = MaterialTheme.typography.titleMedium)
+                    }
+                    Text(
+                        text = "$durationDays 天",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                    FilledIconButton(
+                        onClick = { durationDays++ },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Text("+", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -177,7 +220,12 @@ fun DayDetailBottomSheet(
                     fontWeight = FontWeight.SemiBold,
                 )
                 FilledIconButton(
-                    onClick = onAddFullReminder,
+                    onClick = {
+                        coroutineScope.launch {
+                            sheetState.hide()
+                            onAddFullReminder()
+                        }
+                    },
                     modifier = Modifier.size(32.dp),
                 ) {
                     Icon(Icons.Rounded.Add, contentDescription = "添加提醒", modifier = Modifier.size(18.dp))
@@ -197,7 +245,12 @@ fun DayDetailBottomSheet(
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable { onOpenReminder(task) },
+                                .clickable {
+                                    coroutineScope.launch {
+                                        sheetState.hide()
+                                        onOpenReminder(task)
+                                    }
+                                },
                         ) {
                             Text(
                                 text = task.title,
@@ -212,7 +265,12 @@ fun DayDetailBottomSheet(
                                 fontWeight = FontWeight.SemiBold,
                             )
                         }
-                        IconButton(onClick = { onOpenReminder(task) }) {
+                        IconButton(onClick = {
+                            coroutineScope.launch {
+                                sheetState.hide()
+                                onOpenReminder(task)
+                            }
+                        }) {
                             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "查看详情", modifier = Modifier.size(20.dp))
                         }
                         IconButton(onClick = { onDeleteTask(task) }) {
@@ -244,7 +302,7 @@ fun DayDetailBottomSheet(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 FilledIconButton(
-                    onClick = { onSave(draftNote, selectedOverride) },
+                    onClick = { onSave(draftNote, selectedOverride, durationDays) },
                     modifier = Modifier.testTag("btn_day_save"),
                 ) {
                     Icon(Icons.Rounded.Check, contentDescription = "保存")

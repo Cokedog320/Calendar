@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -32,7 +34,7 @@ class CalendarViewModelTest {
         val repository = FakeCalendarDataStore(
             CalendarData(
                 cycleStartDate = "2026-06-01",
-                pattern = defaultPattern(),
+                pattern = defaultPattern,
                 notes = mapOf("2026-06-15" to "值班交接"),
                 showLunar = false,
             )
@@ -69,35 +71,42 @@ class CalendarViewModelTest {
     }
 
     @Test
-    fun uiStateValueUpdatesWithoutActiveCollector() = runTest {
+    fun uiStateValueUpdatesWithActiveCollector() = runTest {
         val repository = FakeCalendarDataStore(
             CalendarData(
                 cycleStartDate = "2026-06-01",
-                pattern = defaultPattern(),
+                pattern = defaultPattern,
                 notes = mapOf("2026-06-15" to "值班交接"),
                 showLunar = false,
             )
         )
         val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
 
-        advanceUntilIdle()
-        assertEquals("值班交接", viewModel.uiState.value.calendarData.notes["2026-06-15"])
+        try {
+            advanceUntilIdle()
+            assertEquals("值班交接", viewModel.uiState.value.calendarData.notes["2026-06-15"])
 
-        repository.updateDetail(
-            dateKey = "2026-06-20",
-            note = "复盘",
-            overrideShift = null,
-        )
-        advanceUntilIdle()
+            repository.updateDetail(
+                dateKey = "2026-06-20",
+                note = "复盘",
+                overrideShift = null,
+            )
+            advanceUntilIdle()
 
-        val latestState = viewModel.uiState.value
-        assertEquals("复盘", latestState.calendarData.notes["2026-06-20"])
-        assertTrue(
-            latestState.noteEntries.any { entry ->
-                entry.date == LocalDate.of(2026, 6, 20) && entry.text == "复盘"
-            }
-        )
-        assertCalendarDataMatchesNoteEntries(latestState)
+            val latestState = viewModel.uiState.value
+            assertEquals("复盘", latestState.calendarData.notes["2026-06-20"])
+            assertTrue(
+                latestState.noteEntries.any { entry ->
+                    entry.date == LocalDate.of(2026, 6, 20) && entry.text == "复盘"
+                }
+            )
+            assertCalendarDataMatchesNoteEntries(latestState)
+        } finally {
+            collector.cancel()
+        }
     }
 
     @Test
@@ -105,7 +114,7 @@ class CalendarViewModelTest {
         val repository = FakeCalendarDataStore(
             CalendarData(
                 cycleStartDate = "2026-06-01",
-                pattern = defaultPattern(),
+                pattern = defaultPattern,
                 notes = mapOf(
                     "2026-06-15" to "值班交接",
                     "2026-06-20" to "复盘",
@@ -168,13 +177,243 @@ class CalendarViewModelTest {
             assertEquals(targetDateWithNote, viewModel.uiState.value.selectedDate)
 
             // 保存后关闭 Sheet 且清除选中状态
-            viewModel.saveDayDetail(targetDateWithNote, "保存后的备注", defaultPattern().first())
+            viewModel.saveDayDetail(targetDateWithNote, "保存后的备注", defaultPattern.first())
             advanceUntilIdle()
 
             assertFalse(viewModel.uiState.value.isDaySheetVisible)
             assertNull(viewModel.uiState.value.selectedDate)
             assertEquals("保存后的备注", repository.data.value.notes[targetDateWithNote.toString()])
-            assertEquals(defaultPattern().first(), repository.data.value.overrides[targetDateWithNote.toString()])
+            assertEquals(defaultPattern.first(), repository.data.value.overrides[targetDateWithNote.toString()])
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun saveDayDetailWithMultipleDayDuration() = runTest {
+        val targetDate = LocalDate.of(2026, 6, 15)
+        val repository = FakeCalendarDataStore(CalendarData(showLunar = false))
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            val overrideShift = defaultPattern.first()
+            viewModel.saveDayDetail(targetDate, "集体修假", overrideShift, durationDays = 5)
+            advanceUntilIdle()
+
+            // Note should only be on the first day
+            assertEquals("集体修假", repository.data.value.notes[targetDate.toString()])
+            for (i in 1 until 5) {
+                assertNull(repository.data.value.notes[targetDate.plusDays(i.toLong()).toString()])
+            }
+
+            // Override shift should be applied on all 5 days
+            for (i in 0 until 5) {
+                assertEquals(overrideShift, repository.data.value.overrides[targetDate.plusDays(i.toLong()).toString()])
+            }
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun saveDayDetailClearsMultipleDayOverrides() = runTest {
+        val targetDate = LocalDate.of(2026, 6, 15)
+        val initialOverrides = (0 until 5).associate { i ->
+            targetDate.plusDays(i.toLong()).toString() to defaultPattern.first()
+        }
+        val repository = FakeCalendarDataStore(CalendarData(
+            showLunar = false,
+            overrides = initialOverrides
+        ))
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            // Save with overrideShift = null to clear overrides for all 5 days
+            viewModel.saveDayDetail(targetDate, "", null, durationDays = 5)
+            advanceUntilIdle()
+
+            for (i in 0 until 5) {
+                assertNull(repository.data.value.overrides[targetDate.plusDays(i.toLong()).toString()])
+            }
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun uiStateUsesWhileSubscribedAndResumesCorrectly() = runTest {
+        val repository = FakeCalendarDataStore(CalendarData(showLunar = false))
+        val viewModel = CalendarViewModel(repository)
+
+        // Collect, get initial value, then stop collecting
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+        advanceUntilIdle()
+        collector.cancel()
+        advanceUntilIdle()
+
+        // Make a change while no collector is active
+        repository.updateDetail("2026-06-01", "test note", overrideShift = null)
+        advanceUntilIdle()
+
+        // Start collecting again — WhileSubscribed should replay the latest data
+        val secondCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+        advanceUntilIdle()
+
+        try {
+            val state = viewModel.uiState.value
+            assertEquals("test note", state.calendarData.notes["2026-06-01"])
+        } finally {
+            secondCollector.cancel()
+        }
+    }
+
+    @Test
+    fun exportDataReturnsCorrectJson() = runTest {
+        val data = CalendarData(
+            cycleStartDate = "2026-06-01",
+            pattern = defaultPattern,
+            notes = mapOf("2026-06-15" to "Test Note"),
+            showLunar = false,
+        )
+        val repository = FakeCalendarDataStore(data)
+        val viewModel = CalendarViewModel(repository)
+
+        val json = viewModel.exportData()
+        val decoded = Json.decodeFromString<CalendarData>(json)
+        assertEquals(data, decoded)
+    }
+
+    @Test
+    fun importDataUpdatesStateWithValidJson() = runTest {
+        val initialData = CalendarData(showLunar = true)
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            val newData = CalendarData(
+                cycleStartDate = "2026-01-01",
+                notes = mapOf("2026-01-01" to "Imported Note"),
+                showLunar = false,
+            )
+            val json = Json.encodeToString(newData)
+
+            viewModel.importData(json)
+            advanceUntilIdle()
+
+            assertEquals(newData.cycleStartDate, repository.data.value.cycleStartDate)
+            assertEquals(false, viewModel.uiState.value.calendarData.showLunar)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun importDataDoesNotUpdateStateWithInvalidJson() = runTest {
+        val initialData = CalendarData(showLunar = true)
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository)
+
+        viewModel.importData("invalid json")
+        advanceUntilIdle()
+
+        assertEquals(initialData, repository.data.value)
+    }
+
+    @Test
+    fun importDataSetsErrorMessageOnFailure() = runTest {
+        val initialData = CalendarData(showLunar = true)
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            viewModel.importData("invalid json")
+            advanceUntilIdle()
+
+            assertEquals("导入失败：文件格式不正确或已损坏", viewModel.uiState.value.errorMessage)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun importDataSetsErrorMessageOnUnrelatedJson() = runTest {
+        val initialData = CalendarData(showLunar = true)
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            val unrelatedJson = "{\"someOtherField\": 1234, \"hello\": \"world\"}"
+            viewModel.importData(unrelatedJson)
+            advanceUntilIdle()
+
+            assertEquals("导入失败：文件格式不正确或已损坏", viewModel.uiState.value.errorMessage)
+            assertEquals(initialData, repository.data.value)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun importDataClearsErrorMessageOnSuccess() = runTest {
+        val initialData = CalendarData(showLunar = true)
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            viewModel.importData("invalid json")
+            advanceUntilIdle()
+            assertEquals("导入失败：文件格式不正确或已损坏", viewModel.uiState.value.errorMessage)
+
+            val newData = CalendarData(showLunar = false)
+            viewModel.importData(Json.encodeToString(newData))
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.errorMessage)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun clearErrorMessageResetsMessage() = runTest {
+        val initialData = CalendarData(showLunar = true)
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            viewModel.importData("invalid json")
+            advanceUntilIdle()
+            assertEquals("导入失败：文件格式不正确或已损坏", viewModel.uiState.value.errorMessage)
+
+            viewModel.clearErrorMessage()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.errorMessage)
         } finally {
             collector.cancel()
         }
@@ -230,6 +469,14 @@ private class FakeCalendarDataStore(initialData: CalendarData) : CalendarDataSto
 
     override suspend fun clearAll() {
         data.value = CalendarData()
+    }
+
+    override suspend fun replaceAllData(data: CalendarData) {
+        this.data.value = data
+    }
+
+    override suspend fun getCurrentData(): CalendarData {
+        return data.value
     }
 }
 
