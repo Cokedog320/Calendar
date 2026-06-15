@@ -93,9 +93,9 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
                 }
                 profiles[activeIndex] = activeProfile.copy(overrides = overrides)
             }
-            preferences[Keys.profiles] = json.encodeToString(profiles)
-
             val globalNotes = decodeGlobalNotes(preferences, profiles).toMutableMap()
+            val cleanedProfiles = profiles.map { it.copy(notes = emptyMap()) }
+            preferences[Keys.profiles] = json.encodeToString(cleanedProfiles)
             if (note.isBlank()) {
                 globalNotes.remove(dateKey)
             } else {
@@ -123,7 +123,8 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
                     pattern = pattern.ifEmpty { CalendarData().pattern }
                 )
             }
-            preferences[Keys.profiles] = json.encodeToString(profiles)
+            val cleanedProfiles = profiles.map { it.copy(notes = emptyMap()) }
+            preferences[Keys.profiles] = json.encodeToString(cleanedProfiles)
             preferences[Keys.showLunar] = showLunar
         }
     }
@@ -136,7 +137,8 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
             if (activeIndex < profiles.size) {
                 profiles[activeIndex] = profiles[activeIndex].copy(overrides = emptyMap())
             }
-            preferences[Keys.profiles] = json.encodeToString(profiles)
+            val cleanedProfiles = profiles.map { it.copy(notes = emptyMap()) }
+            preferences[Keys.profiles] = json.encodeToString(cleanedProfiles)
         }
     }
 
@@ -149,7 +151,8 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
     override suspend fun replaceAllData(data: CalendarData) {
         context.calendarDataStore.edit { preferences ->
             preferences[Keys.activeProfileId] = data.activeProfileId
-            preferences[Keys.profiles] = json.encodeToString(data.profiles)
+            val cleanedProfiles = data.profiles.map { it.copy(notes = emptyMap()) }
+            preferences[Keys.profiles] = json.encodeToString(cleanedProfiles)
             preferences[Keys.showLunar] = data.showLunar
             preferences[Keys.notes] = json.encodeToString(data.notes)
         }
@@ -216,11 +219,13 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
 
     private fun decodeGlobalNotes(preferences: Preferences, profiles: List<ShiftProfile>): Map<String, String> {
         val raw = preferences[Keys.notes]
-        if (raw != null) {
-            return runCatching { json.decodeFromString<Map<String, String>>(raw) }
+        val globalNotes = if (raw != null) {
+            runCatching { json.decodeFromString<Map<String, String>>(raw) }
                 .getOrElse { emptyMap() }
+        } else {
+            emptyMap()
         }
-        val merged = mutableMapOf<String, String>()
+        val merged = globalNotes.toMutableMap()
         for (profile in profiles) {
             for ((date, text) in profile.notes) {
                 if (text.isNotBlank()) {
