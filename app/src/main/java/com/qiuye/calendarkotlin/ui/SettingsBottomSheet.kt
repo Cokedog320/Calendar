@@ -111,10 +111,112 @@ fun SettingsBottomSheet(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "方案名称",
+                                text = "排班方案",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                var showProfileListBottomSheet by remember { mutableStateOf(false) }
+                                Box {
+                                    OutlinedButton(
+                                        onClick = { showProfileListBottomSheet = true },
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                        modifier = Modifier.testTag("btn_select_profile")
+                                    ) {
+                                        Text(calendarData.activeProfile.name)
+                                    }
+
+                                    if (showProfileListBottomSheet) {
+                                        ModalBottomSheet(
+                                            onDismissRequest = { showProfileListBottomSheet = false }
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .navigationBarsPadding()
+                                                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Text(
+                                                    text = "选择排班方案",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(bottom = 8.dp)
+                                                )
+                                                LazyColumn(
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    items(calendarData.profiles) { profile ->
+                                                        val isActive = profile.id == calendarData.activeProfileId
+                                                        Surface(
+                                                            onClick = {
+                                                                showProfileListBottomSheet = false
+                                                                onSwitchProfile(profile.id)
+                                                                onDismiss() // Close settings sheet instantly on switch
+                                                            },
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            color = if (isActive) MaterialTheme.colorScheme.primaryContainer else Color.White,
+                                                            border = BorderStroke(1.dp, Color(0xFFE5E5E5)),
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        ) {
+                                                            Row(
+                                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Text(
+                                                                    text = profile.name,
+                                                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                                                    color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else Color.Black
+                                                                )
+                                                                if (isActive) {
+                                                                    Icon(
+                                                                        imageVector = Icons.Rounded.Check,
+                                                                        contentDescription = "当前激活",
+                                                                        tint = MaterialTheme.colorScheme.primary
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                OutlinedButton(
+                                    onClick = { onAddProfile("新排班方案") },
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                    modifier = Modifier.testTag("btn_add_profile")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Add,
+                                        contentDescription = "新建方案",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("新建")
+                                }
+
+                                if (calendarData.profiles.size > 1) {
+                                    IconButton(
+                                        onClick = { onDeleteProfile(calendarData.activeProfileId) },
+                                        modifier = Modifier.testTag("btn_delete_profile")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Close,
+                                            contentDescription = "删除当前方案",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         OutlinedTextField(
@@ -178,7 +280,10 @@ fun SettingsBottomSheet(
             }
             item {
                 OutlinedButton(
-                    onClick = onClearOverrides,
+                    onClick = {
+                        onClearOverrides()
+                        onDismiss()
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("btn_clear_overrides"),
