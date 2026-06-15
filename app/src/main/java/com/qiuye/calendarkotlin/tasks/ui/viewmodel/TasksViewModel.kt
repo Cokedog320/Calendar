@@ -49,15 +49,14 @@ class TasksViewModel internal constructor(
 
     suspend fun saveReminder(
         reminderId: Long?,
-        title: String,
-        note: String,
+        input: String,
         dateStartMillis: Long,
         minutesOfDay: Int,
         allowPast: Boolean
     ): SaveReminderResult {
         val scheduledAtMillis = combineDateAndMinutes(dateStartMillis, minutesOfDay)
         val activeProfileId = calendarRepository.getCurrentData().activeProfileId
-        return service.saveReminder(reminderId, title, note, scheduledAtMillis, allowPast, activeProfileId)
+        return service.saveReminder(reminderId, input, scheduledAtMillis, allowPast, activeProfileId)
     }
 
     suspend fun toggleCompletion(reminderId: Long, completed: Boolean) {
@@ -86,7 +85,7 @@ class TasksViewModel internal constructor(
                 val appContext = context.applicationContext
                 TasksViewModel(
                     service = TasksGraph.reminderService(appContext),
-                    calendarRepository = com.qiuye.calendarkotlin.data.CalendarRepository(appContext)
+                    calendarRepository = TasksGraph.calendarRepository(appContext)
                 )
             }
         }

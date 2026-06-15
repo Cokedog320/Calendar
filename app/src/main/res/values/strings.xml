@@ -1,5 +1,9 @@
 <resources>
     <string name="app_name">倒班助手</string>
+    <string name="import_failed_invalid_file">导入失败：文件格式不正确或已损坏</string>
+    <string name="new_shift_profile">新排班方案</string>
+    <string name="default_profile_name">默认方案</string>
+    <string name="imported_profile">导入的方案</string>
 </resources>
 
 

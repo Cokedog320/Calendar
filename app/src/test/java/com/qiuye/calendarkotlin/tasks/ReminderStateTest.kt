@@ -11,6 +11,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.impl.annotations.MockK
+import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -38,7 +39,8 @@ class ReminderStateTest : BaseUnitTest() {
         val notificationPermissionChecker: (Context) -> Boolean = { true }
         val notificationDeliverer: (Context, ReminderEntity) -> Boolean = { _, _ -> true }
         val notificationCanceller: (Context, Long) -> Unit = { _, _ -> }
-        service = ReminderService(repository, scheduler, context, notificationPermissionChecker, notificationDeliverer, notificationCanceller)
+        val calendarRepo = mockk<com.qiuye.calendarkotlin.data.CalendarDataStore>(relaxed = true)
+        service = ReminderService(repository, scheduler, context, notificationPermissionChecker, notificationDeliverer, notificationCanceller, calendarRepo)
     }
 
     @Test
@@ -68,7 +70,7 @@ class ReminderStateTest : BaseUnitTest() {
         coEvery { repository.insert(any()) } returns 2L
 
         // When
-        val result = service.saveReminder(null, "Task", "", futureTime, false)
+        val result = service.saveReminder(null, "Task", futureTime, false)
 
         // Then
         verify { scheduler.reschedule(match { it.id == 2L && it.title == "Task" }) }

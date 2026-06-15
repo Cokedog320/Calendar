@@ -79,12 +79,13 @@ object CalendarCalculator {
         calendarData: CalendarData,
         reminderDates: Set<LocalDate> = emptySet(),
         diaryDates: Set<String> = emptySet(),
+        today: LocalDate = LocalDate.now(),
     ): DayCell {
         val lunarDisplay = ChineseCalendarInfo.getLunarDisplay(date)
         return DayCell(
             date = date,
             inCurrentMonth = true,
-            isToday = date == LocalDate.now(),
+            isToday = date == today,
             isSelected = true,
             shift = getShiftForDate(date, calendarData),
             hasNote = !calendarData.notes[date.toStorageKey()].isNullOrBlank(),

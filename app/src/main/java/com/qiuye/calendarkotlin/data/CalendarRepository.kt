@@ -15,10 +15,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.qiuye.calendarkotlin.model.defaultPattern
 
-private val Context.calendarDataStore by preferencesDataStore(name = "calendar_store")
+val Context.calendarDataStore by preferencesDataStore(name = "calendar_store")
 
 interface CalendarDataStore {
     val calendarData: Flow<CalendarData>
@@ -40,7 +42,9 @@ interface CalendarDataStore {
     suspend fun replaceAllData(data: CalendarData)
 }
 
-class CalendarRepository(private val context: Context) : CalendarDataStore {
+class CalendarRepository(
+    private val defaultProfileName: String = "默认方案",
+private val dataStore: androidx.datastore.core.DataStore<Preferences>) : CalendarDataStore {
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -60,7 +64,7 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
     }
 
     override val calendarData: Flow<CalendarData> =
-        context.calendarDataStore.data
+        dataStore.data
             .catch { exception ->
                 if (exception is IOException) {
                     emit(emptyPreferences())
@@ -69,33 +73,34 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
                 }
             }
             .map { preferences ->
-                val profiles = decodeProfiles(preferences)
+                val (profiles, notes) = decodeProfilesAndNotes(preferences)
                 CalendarData(
                     activeProfileId = preferences[Keys.activeProfileId] ?: "default",
                     profiles = profiles,
                     showLunar = preferences[Keys.showLunar] ?: true,
-                    notes = decodeGlobalNotes(preferences, profiles)
+                    notes = notes
                 )
             }
 
     override suspend fun updateDetail(dateKey: String, note: String, overrideShift: ShiftDefinition?) {
-        context.calendarDataStore.edit { preferences ->
-            val profiles = decodeProfiles(preferences).toMutableList()
+        dataStore.edit { preferences ->
+            val (profiles, globalNotesMutable) = decodeProfilesAndNotes(preferences)
+            val profilesList = profiles.toMutableList()
             val activeId = preferences[Keys.activeProfileId] ?: "default"
-            val activeIndex = profiles.indexOfFirst { it.id == activeId }.takeIf { it != -1 } ?: 0
-            if (activeIndex < profiles.size) {
-                val activeProfile = profiles[activeIndex]
+            val activeIndex = profilesList.indexOfFirst { it.id == activeId }.takeIf { it != -1 } ?: 0
+            if (activeIndex < profilesList.size) {
+                val activeProfile = profilesList[activeIndex]
                 val overrides = activeProfile.overrides.toMutableMap()
                 if (overrideShift == null) {
                     overrides.remove(dateKey)
                 } else {
                     overrides[dateKey] = overrideShift
                 }
-                profiles[activeIndex] = activeProfile.copy(overrides = overrides)
+                profilesList[activeIndex] = activeProfile.copy(overrides = overrides)
             }
-            val globalNotes = decodeGlobalNotes(preferences, profiles).toMutableMap()
-            val cleanedProfiles = profiles.map { it.copy(notes = emptyMap()) }
-            preferences[Keys.profiles] = json.encodeToString(cleanedProfiles)
+            
+            val globalNotes = globalNotesMutable.toMutableMap()
+            preferences[Keys.profiles] = json.encodeToString(profilesList)
             if (note.isBlank()) {
                 globalNotes.remove(dateKey)
             } else {
@@ -111,91 +116,139 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
         pattern: List<ShiftDefinition>,
         showLunar: Boolean,
     ) {
-        context.calendarDataStore.edit { preferences ->
-            val profiles = decodeProfiles(preferences).toMutableList()
+        dataStore.edit { preferences ->
+            val (profiles, _) = decodeProfilesAndNotes(preferences)
+            val profilesList = profiles.toMutableList()
             val activeId = preferences[Keys.activeProfileId] ?: "default"
-            val activeIndex = profiles.indexOfFirst { it.id == activeId }.takeIf { it != -1 } ?: 0
-            if (activeIndex < profiles.size) {
-                val activeProfile = profiles[activeIndex]
-                profiles[activeIndex] = activeProfile.copy(
+            val activeIndex = profilesList.indexOfFirst { it.id == activeId }.takeIf { it != -1 } ?: 0
+            if (activeIndex < profilesList.size) {
+                val activeProfile = profilesList[activeIndex]
+                profilesList[activeIndex] = activeProfile.copy(
                     cycleStartDate = cycleStartDate?.takeIf { it.isNotBlank() },
                     cycleEndDate = cycleEndDate?.takeIf { it.isNotBlank() },
                     pattern = pattern.ifEmpty { CalendarData().pattern }
                 )
             }
-            val cleanedProfiles = profiles.map { it.copy(notes = emptyMap()) }
-            preferences[Keys.profiles] = json.encodeToString(cleanedProfiles)
+            preferences[Keys.profiles] = json.encodeToString(profilesList)
             preferences[Keys.showLunar] = showLunar
         }
     }
 
     override suspend fun clearOverrides() {
-        context.calendarDataStore.edit { preferences ->
-            val profiles = decodeProfiles(preferences).toMutableList()
+        dataStore.edit { preferences ->
+            val (profiles, _) = decodeProfilesAndNotes(preferences)
+            val profilesList = profiles.toMutableList()
             val activeId = preferences[Keys.activeProfileId] ?: "default"
-            val activeIndex = profiles.indexOfFirst { it.id == activeId }.takeIf { it != -1 } ?: 0
-            if (activeIndex < profiles.size) {
-                profiles[activeIndex] = profiles[activeIndex].copy(overrides = emptyMap())
+            val activeIndex = profilesList.indexOfFirst { it.id == activeId }.takeIf { it != -1 } ?: 0
+            if (activeIndex < profilesList.size) {
+                profilesList[activeIndex] = profilesList[activeIndex].copy(overrides = emptyMap())
             }
-            val cleanedProfiles = profiles.map { it.copy(notes = emptyMap()) }
-            preferences[Keys.profiles] = json.encodeToString(cleanedProfiles)
+            preferences[Keys.profiles] = json.encodeToString(profilesList)
         }
     }
 
     override suspend fun clearAll() {
-        context.calendarDataStore.edit { preferences ->
+        dataStore.edit { preferences ->
             preferences.clear()
         }
     }
 
     override suspend fun replaceAllData(data: CalendarData) {
-        context.calendarDataStore.edit { preferences ->
+        dataStore.edit { preferences ->
             preferences[Keys.activeProfileId] = data.activeProfileId
-            val cleanedProfiles = data.profiles.map { it.copy(notes = emptyMap()) }
-            preferences[Keys.profiles] = json.encodeToString(cleanedProfiles)
+            preferences[Keys.profiles] = json.encodeToString(data.profiles)
             preferences[Keys.showLunar] = data.showLunar
             preferences[Keys.notes] = json.encodeToString(data.notes)
         }
     }
 
     override suspend fun getCurrentData(): CalendarData {
-        return context.calendarDataStore.data.map { preferences ->
-            val profiles = decodeProfiles(preferences)
+        return dataStore.data.map { preferences ->
+            val (profiles, notes) = decodeProfilesAndNotes(preferences)
             CalendarData(
                 activeProfileId = preferences[Keys.activeProfileId] ?: "default",
                 profiles = profiles,
                 showLunar = preferences[Keys.showLunar] ?: true,
-                notes = decodeGlobalNotes(preferences, profiles)
+                notes = notes
             )
         }.first()
     }
 
-    private fun decodeProfiles(preferences: Preferences): List<ShiftProfile> {
-        val raw = preferences[Keys.profiles]
-        if (raw != null) {
-            return runCatching { json.decodeFromString<List<ShiftProfile>>(raw) }
+    private fun decodeProfilesAndNotes(preferences: Preferences): Pair<List<ShiftProfile>, Map<String, String>> {
+        val rawProfiles = preferences[Keys.profiles]
+        val rawNotes = preferences[Keys.notes]
+        
+        val globalNotes = if (rawNotes != null) {
+            runCatching { json.decodeFromString<Map<String, String>>(rawNotes) }
+                .getOrElse { emptyMap() }
+        } else {
+            emptyMap()
+        }
+        val mergedNotes = globalNotes.toMutableMap()
+        val profilesList = mutableListOf<ShiftProfile>()
+
+        if (rawProfiles != null) {
+            val legacyProfiles = runCatching { json.decodeFromString<List<LegacyShiftProfile>>(rawProfiles) }
                 .getOrElse { emptyList() }
-                .ifEmpty { listOf(ShiftProfile(id = "default", name = "默认方案")) }
+            
+            for (legacy in legacyProfiles) {
+                for ((date, text) in legacy.notes) {
+                    if (text.isNotBlank()) {
+                        val existing = mergedNotes[date]
+                        if (existing == null) {
+                            mergedNotes[date] = text
+                        } else if (!existing.contains(text)) {
+                            mergedNotes[date] = "$existing\n$text"
+                        }
+                    }
+                }
+                profilesList.add(
+                    ShiftProfile(
+                        id = legacy.id,
+                        name = legacy.name,
+                        cycleStartDate = legacy.cycleStartDate,
+                        cycleEndDate = legacy.cycleEndDate,
+                        pattern = legacy.pattern,
+                        overrides = legacy.overrides
+                    )
+                )
+            }
+        } else {
+            // Old keys migration:
+            val cycleStartDate = preferences[Keys.cycleStartDate]
+            val cycleEndDate = preferences[Keys.cycleEndDate]
+            val pattern = decodePattern(preferences)
+            val oldNotes = decodeNotes(preferences)
+            val overrides = decodeOverrides(preferences)
+
+            for ((date, text) in oldNotes) {
+                if (text.isNotBlank()) {
+                    val existing = mergedNotes[date]
+                    if (existing == null) {
+                        mergedNotes[date] = text
+                    } else if (!existing.contains(text)) {
+                        mergedNotes[date] = "$existing\n$text"
+                    }
+                }
+            }
+
+            profilesList.add(
+                ShiftProfile(
+                    id = "default",
+                    name = defaultProfileName,
+                    cycleStartDate = cycleStartDate,
+                    cycleEndDate = cycleEndDate,
+                    pattern = pattern,
+                    overrides = overrides
+                )
+            )
         }
 
-        // Old keys migration:
-        val cycleStartDate = preferences[Keys.cycleStartDate]
-        val cycleEndDate = preferences[Keys.cycleEndDate]
-        val pattern = decodePattern(preferences)
-        val notes = decodeNotes(preferences)
-        val overrides = decodeOverrides(preferences)
+        if (profilesList.isEmpty()) {
+            profilesList.add(ShiftProfile(id = "default", name = defaultProfileName))
+        }
 
-        return listOf(
-            ShiftProfile(
-                id = "default",
-                name = "默认方案",
-                cycleStartDate = cycleStartDate,
-                cycleEndDate = cycleEndDate,
-                pattern = pattern,
-                overrides = overrides,
-                notes = notes
-            )
-        )
+        return Pair(profilesList, mergedNotes)
     }
 
     private fun decodePattern(preferences: Preferences): List<ShiftDefinition> {
@@ -216,30 +269,17 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
         return runCatching { json.decodeFromString<Map<String, ShiftDefinition>>(raw) }
             .getOrElse { emptyMap() }
     }
-
-    private fun decodeGlobalNotes(preferences: Preferences, profiles: List<ShiftProfile>): Map<String, String> {
-        val raw = preferences[Keys.notes]
-        val globalNotes = if (raw != null) {
-            runCatching { json.decodeFromString<Map<String, String>>(raw) }
-                .getOrElse { emptyMap() }
-        } else {
-            emptyMap()
-        }
-        val merged = globalNotes.toMutableMap()
-        for (profile in profiles) {
-            for ((date, text) in profile.notes) {
-                if (text.isNotBlank()) {
-                    val existing = merged[date]
-                    if (existing == null) {
-                        merged[date] = text
-                    } else if (!existing.contains(text)) {
-                        merged[date] = "$existing\n$text"
-                    }
-                }
-            }
-        }
-        return merged
-    }
 }
+
+@Serializable
+private data class LegacyShiftProfile(
+    val id: String,
+    val name: String,
+    val cycleStartDate: String? = null,
+    val cycleEndDate: String? = null,
+    val pattern: List<ShiftDefinition> = defaultPattern,
+    val overrides: Map<String, ShiftDefinition> = emptyMap(),
+    val notes: Map<String, String> = emptyMap(),
+)
 
 

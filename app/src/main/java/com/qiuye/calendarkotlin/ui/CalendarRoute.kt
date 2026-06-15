@@ -70,6 +70,11 @@ import com.qiuye.calendarkotlin.diary.ui.DiaryListBottomSheet
 private val pagerStartMonth: YearMonth = YearMonth.of(1900, 1)
 private val pagerPageCount = (2100 - 1900) * 12
 
+private val com.qiuye.calendarkotlin.tasks.data.ReminderEntity.localDate: java.time.LocalDate
+    get() = java.time.Instant.ofEpochMilli(scheduledAtMillis)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDate()
+
 @Composable
 fun CalendarRoute(
     viewModel: CalendarViewModel, 
@@ -93,18 +98,7 @@ fun CalendarRoute(
         contract = ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
         uri?.let { targetUri ->
-            coroutineScope.launch {
-                try {
-                    val json = viewModel.exportData()
-                    context.contentResolver.openOutputStream(targetUri)?.use { outputStream ->
-                        OutputStreamWriter(outputStream).use { writer ->
-                            writer.write(json)
-                        }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
+            viewModel.exportToFile(targetUri, context)
         }
     }
 
@@ -112,22 +106,7 @@ fun CalendarRoute(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
         uri?.let { targetUri ->
-            coroutineScope.launch {
-                try {
-                    val json = context.contentResolver.openInputStream(targetUri)?.use { inputStream ->
-                        BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                            reader.readText()
-                        }
-                    }
-                    if (!json.isNullOrBlank()) {
-                        viewModel.importData(json)
-                    } else {
-                        viewModel.importData("INVALID_JSON")
-                    }
-                } catch (e: Exception) {
-                    viewModel.importData("INVALID_JSON")
-                }
-            }
+            viewModel.importFromFile(targetUri, context, context.getString(com.qiuye.calendarkotlin.R.string.imported_profile))
         }
     }
 
@@ -163,11 +142,7 @@ fun CalendarRoute(
         onSelectDate = { date ->
             viewModel.selectDate(date)
             // Also auto-open if the date has reminders
-            val hasReminders = reminders.any { reminder ->
-                java.time.Instant.ofEpochMilli(reminder.scheduledAtMillis)
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDate() == date
-            }
+            val hasReminders = reminders.any { reminder -> reminder.localDate == date }
             if (hasReminders) {
                 viewModel.openSelectedDayDetail()
             }
@@ -248,6 +223,7 @@ private fun CalendarScreen(
 ) {
     val palette = remember(uiState.currentMonth.monthValue) { seasonPaletteFor(uiState.currentMonth.monthValue) }
     val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val latestOnMonthChanged = rememberUpdatedState(onMonthChanged)
     val latestCurrentMonth = rememberUpdatedState(uiState.currentMonth)
@@ -256,11 +232,7 @@ private fun CalendarScreen(
         pageCount = { pagerPageCount },
     )
     val reminderDates = remember(reminders) {
-        reminders.map { reminder ->
-            java.time.Instant.ofEpochMilli(reminder.scheduledAtMillis)
-                .atZone(java.time.ZoneId.systemDefault())
-                .toLocalDate()
-        }.toSet()
+        reminders.map { it.localDate }.toSet()
     }
 
     val handleToday = {
@@ -290,8 +262,9 @@ private fun CalendarScreen(
             }
     }
 
-    LaunchedEffect(uiState.errorMessage) {
-        uiState.errorMessage?.let { message ->
+    LaunchedEffect(uiState.errorMessageResId) {
+        uiState.errorMessageResId?.let { resId ->
+            val message = context.getString(resId)
             snackbarHostState.showSnackbar(message)
             viewModel.clearErrorMessage()
         }
@@ -506,7 +479,7 @@ private fun CalendarScreen(
                     onExport = onExport,
                     onImport = onImport,
                     onSwitchProfile = viewModel::switchProfile,
-                    onAddProfile = viewModel::addNewProfile,
+                    onAddProfile = { name -> viewModel.addNewProfile(name, context.getString(com.qiuye.calendarkotlin.R.string.new_shift_profile)) },
                     onDeleteProfile = viewModel::deleteProfile,
                 )
             } else if (uiState.isProfileSelectVisible) {
@@ -514,7 +487,7 @@ private fun CalendarScreen(
                     calendarData = uiState.calendarData,
                     onDismiss = onCloseProfileSelect,
                     onSwitchProfile = viewModel::switchProfile,
-                    onAddProfile = viewModel::addNewProfile,
+                    onAddProfile = { name -> viewModel.addNewProfile(name, context.getString(com.qiuye.calendarkotlin.R.string.new_shift_profile)) },
                     onDeleteProfile = viewModel::deleteProfile,
                     onOpenSettings = onOpenSettings,
                 )

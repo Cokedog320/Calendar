@@ -30,13 +30,12 @@ data class ShiftProfile(
     val cycleEndDate: String? = null,
     val pattern: List<ShiftDefinition> = defaultPattern,
     val overrides: Map<String, ShiftDefinition> = emptyMap(),
-    val notes: Map<String, String> = emptyMap(),
 )
 
 @Serializable
 data class CalendarData(
     val activeProfileId: String = "default",
-    val profiles: List<ShiftProfile> = listOf(ShiftProfile(id = "default", name = "默认方案")),
+    val profiles: List<ShiftProfile> = listOf(ShiftProfile(id = "default", name = "Default")),
     val showLunar: Boolean = true,
     val notes: Map<String, String> = emptyMap(),
 ) {
@@ -53,12 +52,11 @@ data class CalendarData(
         profiles = listOf(
             ShiftProfile(
                 id = "default",
-                name = "默认方案",
+                name = "Default",
                 cycleStartDate = cycleStartDate,
                 cycleEndDate = cycleEndDate,
                 pattern = pattern,
-                overrides = overrides,
-                notes = emptyMap()
+                overrides = overrides
             )
         ),
         showLunar = showLunar,
@@ -66,7 +64,7 @@ data class CalendarData(
     )
 
     val activeProfile: ShiftProfile
-        get() = profiles.find { it.id == activeProfileId } ?: profiles.firstOrNull() ?: ShiftProfile(id = "default", name = "默认方案")
+        get() = profiles.find { it.id == activeProfileId } ?: profiles.firstOrNull() ?: ShiftProfile(id = "default", name = "Default")
 
     val cycleStartDate: String? get() = activeProfile.cycleStartDate
     val cycleEndDate: String? get() = activeProfile.cycleEndDate

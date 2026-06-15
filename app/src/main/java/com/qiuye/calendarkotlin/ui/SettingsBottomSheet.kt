@@ -121,7 +121,8 @@ fun SettingsBottomSheet(
                             ) {
                                 var showProfileListBottomSheet by remember { mutableStateOf(false) }
                                 Box {
-                                    OutlinedButton(
+                                    val defaultName = androidx.compose.ui.res.stringResource(com.qiuye.calendarkotlin.R.string.new_shift_profile)
+                                OutlinedButton(
                                         onClick = { showProfileListBottomSheet = true },
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                         modifier = Modifier.testTag("btn_select_profile")
@@ -189,8 +190,9 @@ fun SettingsBottomSheet(
                                     }
                                 }
 
+                                val defaultName = androidx.compose.ui.res.stringResource(com.qiuye.calendarkotlin.R.string.new_shift_profile)
                                 OutlinedButton(
-                                    onClick = { onAddProfile("新排班方案") },
+                                    onClick = { onAddProfile(defaultName) },
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                                     modifier = Modifier.testTag("btn_add_profile")
                                 ) {

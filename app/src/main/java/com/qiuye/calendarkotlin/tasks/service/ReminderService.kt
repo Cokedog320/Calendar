@@ -30,7 +30,7 @@ class ReminderService(
     private val notificationCanceller: (Context, Long) -> Unit = ReminderNotifier::cancelReminderNotification,
     private val calendarRepository: CalendarDataStore? = null
 ) {
-    private val resolvedCalendarRepository = calendarRepository ?: com.qiuye.calendarkotlin.data.CalendarRepository(context.applicationContext)
+    private val resolvedCalendarRepository = calendarRepository ?: com.qiuye.calendarkotlin.tasks.TasksGraph.calendarRepository(context.applicationContext)
     fun observeReminders(profileId: String): Flow<List<ReminderEntity>> = repository.observeAll(profileId)
 
     fun observeReminder(id: Long): Flow<ReminderEntity?> = repository.observeById(id)
@@ -41,13 +41,15 @@ class ReminderService(
 
     suspend fun saveReminder(
         reminderId: Long?,
-        title: String,
-        note: String,
+        input: String,
         scheduledAtMillis: Long,
         allowPast: Boolean,
         profileId: String? = null
     ): SaveReminderResult {
-        val trimmedTitle = title.trim()
+        val lines = input.lines()
+        val trimmedTitle = lines.firstOrNull()?.trim().orEmpty()
+        val trimmedNote = lines.drop(1).joinToString("\n").trim()
+
         if (trimmedTitle.isEmpty()) {
             return SaveReminderResult.ValidationError("标题不能为空")
         }
@@ -63,7 +65,7 @@ class ReminderService(
         val reminder = createReminder(
             id = existing?.id ?: 0,
             title = trimmedTitle,
-            note = note.trim(),
+            note = trimmedNote,
             scheduledAtMillis = scheduledAtMillis,
             isCompleted = existing?.isCompleted ?: false,
             createdAtMillis = createdAt,

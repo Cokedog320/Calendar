@@ -191,11 +191,10 @@ tasksViewModel: TasksViewModel = viewModel(factory = TasksViewModel.factory(Loca
                 onNavigateBack = {
                     navController.popBackStack()
                 },
-                onSave = { reminderId, title, note, dateStartMillis, minutesOfDay, allowPast ->
+                onSave = { reminderId, input, dateStartMillis, minutesOfDay, allowPast ->
                     tasksViewModel.saveReminder(
                         reminderId = reminderId,
-                        title = title,
-                        note = note,
+                        input = input,
                         dateStartMillis = dateStartMillis,
                         minutesOfDay = minutesOfDay,
                         allowPast = allowPast
@@ -224,11 +223,10 @@ tasksViewModel: TasksViewModel = viewModel(factory = TasksViewModel.factory(Loca
                 onNavigateBack = {
                     navController.popBackStack()
                 },
-                onSave = { editedReminderId, title, note, dateStartMillis, minutesOfDay, allowPast ->
+                onSave = { editedReminderId, input, dateStartMillis, minutesOfDay, allowPast ->
                     tasksViewModel.saveReminder(
                         reminderId = editedReminderId,
-                        title = title,
-                        note = note,
+                        input = input,
                         dateStartMillis = dateStartMillis,
                         minutesOfDay = minutesOfDay,
                         allowPast = allowPast
