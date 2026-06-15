@@ -69,10 +69,12 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
                 }
             }
             .map { preferences ->
+                val profiles = decodeProfiles(preferences)
                 CalendarData(
                     activeProfileId = preferences[Keys.activeProfileId] ?: "default",
-                    profiles = decodeProfiles(preferences),
+                    profiles = profiles,
                     showLunar = preferences[Keys.showLunar] ?: true,
+                    notes = decodeGlobalNotes(preferences, profiles)
                 )
             }
 
@@ -83,21 +85,23 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
             val activeIndex = profiles.indexOfFirst { it.id == activeId }.takeIf { it != -1 } ?: 0
             if (activeIndex < profiles.size) {
                 val activeProfile = profiles[activeIndex]
-                val notes = activeProfile.notes.toMutableMap()
-                if (note.isBlank()) {
-                    notes.remove(dateKey)
-                } else {
-                    notes[dateKey] = note.trim()
-                }
                 val overrides = activeProfile.overrides.toMutableMap()
                 if (overrideShift == null) {
                     overrides.remove(dateKey)
                 } else {
                     overrides[dateKey] = overrideShift
                 }
-                profiles[activeIndex] = activeProfile.copy(notes = notes, overrides = overrides)
+                profiles[activeIndex] = activeProfile.copy(overrides = overrides)
             }
             preferences[Keys.profiles] = json.encodeToString(profiles)
+
+            val globalNotes = decodeGlobalNotes(preferences, profiles).toMutableMap()
+            if (note.isBlank()) {
+                globalNotes.remove(dateKey)
+            } else {
+                globalNotes[dateKey] = note.trim()
+            }
+            preferences[Keys.notes] = json.encodeToString(globalNotes)
         }
     }
 
@@ -147,15 +151,18 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
             preferences[Keys.activeProfileId] = data.activeProfileId
             preferences[Keys.profiles] = json.encodeToString(data.profiles)
             preferences[Keys.showLunar] = data.showLunar
+            preferences[Keys.notes] = json.encodeToString(data.notes)
         }
     }
 
     override suspend fun getCurrentData(): CalendarData {
         return context.calendarDataStore.data.map { preferences ->
+            val profiles = decodeProfiles(preferences)
             CalendarData(
                 activeProfileId = preferences[Keys.activeProfileId] ?: "default",
-                profiles = decodeProfiles(preferences),
+                profiles = profiles,
                 showLunar = preferences[Keys.showLunar] ?: true,
+                notes = decodeGlobalNotes(preferences, profiles)
             )
         }.first()
     }
@@ -205,6 +212,28 @@ class CalendarRepository(private val context: Context) : CalendarDataStore {
         val raw = preferences[Keys.overrides] ?: return emptyMap()
         return runCatching { json.decodeFromString<Map<String, ShiftDefinition>>(raw) }
             .getOrElse { emptyMap() }
+    }
+
+    private fun decodeGlobalNotes(preferences: Preferences, profiles: List<ShiftProfile>): Map<String, String> {
+        val raw = preferences[Keys.notes]
+        if (raw != null) {
+            return runCatching { json.decodeFromString<Map<String, String>>(raw) }
+                .getOrElse { emptyMap() }
+        }
+        val merged = mutableMapOf<String, String>()
+        for (profile in profiles) {
+            for ((date, text) in profile.notes) {
+                if (text.isNotBlank()) {
+                    val existing = merged[date]
+                    if (existing == null) {
+                        merged[date] = text
+                    } else if (!existing.contains(text)) {
+                        merged[date] = "$existing\n$text"
+                    }
+                }
+            }
+        }
+        return merged
     }
 }
 

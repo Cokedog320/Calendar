@@ -38,6 +38,7 @@ data class CalendarData(
     val activeProfileId: String = "default",
     val profiles: List<ShiftProfile> = listOf(ShiftProfile(id = "default", name = "默认方案")),
     val showLunar: Boolean = true,
+    val notes: Map<String, String> = emptyMap(),
 ) {
     // Secondary constructor for backward compatibility in tests and initialization
     constructor(
@@ -57,10 +58,11 @@ data class CalendarData(
                 cycleEndDate = cycleEndDate,
                 pattern = pattern,
                 overrides = overrides,
-                notes = notes
+                notes = emptyMap()
             )
         ),
-        showLunar = showLunar
+        showLunar = showLunar,
+        notes = notes
     )
 
     val activeProfile: ShiftProfile
@@ -69,7 +71,6 @@ data class CalendarData(
     val cycleStartDate: String? get() = activeProfile.cycleStartDate
     val cycleEndDate: String? get() = activeProfile.cycleEndDate
     val pattern: List<ShiftDefinition> get() = activeProfile.pattern
-    val notes: Map<String, String> get() = activeProfile.notes
     val overrides: Map<String, ShiftDefinition> get() = activeProfile.overrides
 }
 

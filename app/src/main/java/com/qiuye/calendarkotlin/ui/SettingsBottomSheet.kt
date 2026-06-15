@@ -282,7 +282,6 @@ fun SettingsBottomSheet(
                 OutlinedButton(
                     onClick = {
                         onClearOverrides()
-                        onDismiss()
                     },
                     modifier = Modifier
                         .fillMaxWidth()

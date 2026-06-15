@@ -262,15 +262,19 @@ class CalendarViewModel internal constructor(
                         cycleEndDate = cycleEndDate,
                         pattern = pattern,
                         overrides = overrides,
-                        notes = notes
+                        notes = emptyMap()
                     )
 
                     val current = repository.getCurrentData()
                     val oldActiveId = current.activeProfileId
+                    val mergedNotes = current.notes.toMutableMap().apply {
+                        putAll(notes)
+                    }
                     val updated = current.copy(
                         profiles = current.profiles + importedProfile,
                         activeProfileId = importedProfile.id,
-                        showLunar = showLunar
+                        showLunar = showLunar,
+                        notes = mergedNotes
                     )
 
                     reminderService?.rescheduleAlarmsForProfileSwitch(oldActiveId, importedProfile.id)
@@ -369,7 +373,6 @@ class CalendarViewModel internal constructor(
             val updatedProfiles = current.profiles.map { profile ->
                 if (profile.id == current.activeProfileId) {
                     profile.copy(
-                        notes = updatedNotes,
                         overrides = updatedOverrides
                     )
                 } else {
@@ -378,7 +381,8 @@ class CalendarViewModel internal constructor(
             }
             repository.replaceAllData(
                 current.copy(
-                    profiles = updatedProfiles
+                    profiles = updatedProfiles,
+                    notes = updatedNotes
                 )
             )
             dismissDaySheet(clearSelection = true)
@@ -440,6 +444,7 @@ class CalendarViewModel internal constructor(
     fun clearOverrides() {
         viewModelScope.launch {
             repository.clearOverrides()
+            settingsVisible.value = false
         }
     }
 

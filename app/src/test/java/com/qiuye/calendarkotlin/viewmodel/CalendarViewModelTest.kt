@@ -15,11 +15,13 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.qiuye.calendarkotlin.model.ShiftProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
 
@@ -442,6 +444,118 @@ class CalendarViewModelTest {
             collector.cancel()
         }
     }
+
+    @Test
+    fun clearOverridesClearsTheOverrides() = runTest {
+        val targetDate = LocalDate.of(2026, 6, 15)
+        val initialData = CalendarData(
+            overrides = mapOf(targetDate.toString() to defaultPattern.first())
+        )
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            advanceUntilIdle()
+            assertEquals(defaultPattern.first(), viewModel.uiState.value.calendarData.overrides[targetDate.toString()])
+            
+            viewModel.openSettings()
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSettingsVisible)
+
+            viewModel.clearOverrides()
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.calendarData.overrides.isEmpty())
+            assertFalse(viewModel.uiState.value.isSettingsVisible)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun switchProfileUpdatesActiveProfileId() = runTest {
+        val profile1 = ShiftProfile(id = "p1", name = "方案1")
+        val profile2 = ShiftProfile(id = "p2", name = "方案2")
+        val initialData = CalendarData(activeProfileId = "p1", profiles = listOf(profile1, profile2))
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            advanceUntilIdle()
+            assertEquals("p1", viewModel.uiState.value.calendarData.activeProfileId)
+
+            viewModel.switchProfile("p2")
+            advanceUntilIdle()
+
+            assertEquals("p2", viewModel.uiState.value.calendarData.activeProfileId)
+            assertEquals("方案2", viewModel.uiState.value.calendarData.activeProfile.name)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun addNewProfileCreatesNewProfileAndSetsAsActive() = runTest {
+        val initialData = CalendarData()
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            advanceUntilIdle()
+            assertEquals(1, viewModel.uiState.value.calendarData.profiles.size)
+            assertEquals("default", viewModel.uiState.value.calendarData.activeProfileId)
+
+            viewModel.addNewProfile("自定义方案")
+            advanceUntilIdle()
+
+            val profiles = viewModel.uiState.value.calendarData.profiles
+            assertEquals(2, profiles.size)
+            val newProfile = profiles.find { it.id != "default" }
+            assertNotNull(newProfile)
+            assertEquals("自定义方案", newProfile!!.name)
+            assertEquals(newProfile.id, viewModel.uiState.value.calendarData.activeProfileId)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun deleteProfileDeletesProfileAndUpdatesActiveIdIfNeeded() = runTest {
+        val profile1 = ShiftProfile(id = "p1", name = "方案1")
+        val profile2 = ShiftProfile(id = "p2", name = "方案2")
+        val initialData = CalendarData(activeProfileId = "p2", profiles = listOf(profile1, profile2))
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            advanceUntilIdle()
+            assertEquals(2, viewModel.uiState.value.calendarData.profiles.size)
+            assertEquals("p2", viewModel.uiState.value.calendarData.activeProfileId)
+
+            // Delete active profile (p2)
+            viewModel.deleteProfile("p2")
+            advanceUntilIdle()
+
+            val profiles = viewModel.uiState.value.calendarData.profiles
+            assertEquals(1, profiles.size)
+            assertEquals("p1", profiles.first().id)
+            assertEquals("p1", viewModel.uiState.value.calendarData.activeProfileId)
+        } finally {
+            collector.cancel()
+        }
+    }
 }
 
 private fun assertCalendarDataMatchesNoteEntries(state: CalendarUiState) {
@@ -458,15 +572,15 @@ private class FakeCalendarDataStore(initialData: CalendarData) : CalendarDataSto
         val current = data.value
         val profiles = current.profiles.toMutableList()
         val activeIndex = profiles.indexOfFirst { it.id == current.activeProfileId }.takeIf { it != -1 } ?: 0
+        val nextNotes = current.notes.toMutableMap().apply {
+            if (note.isBlank()) {
+                remove(dateKey)
+            } else {
+                put(dateKey, note.trim())
+            }
+        }
         if (activeIndex < profiles.size) {
             val activeProfile = profiles[activeIndex]
-            val nextNotes = activeProfile.notes.toMutableMap().apply {
-                if (note.isBlank()) {
-                    remove(dateKey)
-                } else {
-                    put(dateKey, note.trim())
-                }
-            }
             val nextOverrides = activeProfile.overrides.toMutableMap().apply {
                 if (overrideShift == null) {
                     remove(dateKey)
@@ -474,9 +588,9 @@ private class FakeCalendarDataStore(initialData: CalendarData) : CalendarDataSto
                     put(dateKey, overrideShift)
                 }
             }
-            profiles[activeIndex] = activeProfile.copy(notes = nextNotes, overrides = nextOverrides)
+            profiles[activeIndex] = activeProfile.copy(overrides = nextOverrides)
         }
-        data.value = current.copy(profiles = profiles)
+        data.value = current.copy(profiles = profiles, notes = nextNotes)
     }
 
     override suspend fun updateSettings(
