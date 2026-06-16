@@ -8,6 +8,8 @@ import com.qiuye.calendarkotlin.tasks.notification.ReminderNotifier
 import com.qiuye.calendarkotlin.tasks.scheduler.AlarmReminderScheduler
 import com.qiuye.calendarkotlin.tasks.scheduler.ReminderScheduler
 import com.qiuye.calendarkotlin.tasks.service.ReminderService
+import com.qiuye.calendarkotlin.data.CalendarRepository
+import com.qiuye.calendarkotlin.data.calendarDataStore
 
 object TasksGraph {
     @Volatile
@@ -26,12 +28,27 @@ object TasksGraph {
     private var scheduler: ReminderScheduler? = null
 
     @Volatile
+    private var calendarRepository: CalendarRepository? = null
+
+    @Volatile
     private var service: ReminderService? = null
 
     fun initialize(context: Context) {
         val appContext = context.applicationContext
         applicationContext = appContext
         ReminderNotifier.createChannel(appContext)
+    }
+
+    fun calendarRepository(context: Context? = null): CalendarRepository {
+        if (context != null) {
+            initialize(context)
+        }
+        return calendarRepository ?: synchronized(this) {
+            val appContext = requireNotNull(applicationContext) {
+                "TasksGraph must be initialized before use"
+            }
+            calendarRepository ?: CalendarRepository(defaultProfileName = appContext.getString(com.qiuye.calendarkotlin.R.string.default_profile_name), dataStore = appContext.calendarDataStore).also { calendarRepository = it }
+        }
     }
 
     fun reminderService(context: Context? = null): ReminderService {
@@ -45,7 +62,13 @@ object TasksGraph {
             val currentDatabase = database ?: ReminderDatabase.getInstance(appContext).also { database = it }
             val currentRepository = repository ?: ReminderRepository(currentDatabase.reminderDao()).also { repository = it }
             val currentScheduler = scheduler ?: AlarmReminderScheduler(appContext).also { scheduler = it }
-            service ?: ReminderService(currentRepository, currentScheduler, appContext).also { service = it }
+            val calendarRepo = calendarRepository(appContext)
+            service ?: ReminderService(
+                repository = currentRepository,
+                scheduler = currentScheduler,
+                context = appContext,
+                calendarRepository = calendarRepo
+            ).also { service = it }
         }
     }
 

@@ -7,6 +7,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import com.qiuye.calendarkotlin.data.calendarDataStore
 
 class NoteRepositoryTest : BaseUnitTest() {
 
@@ -27,7 +28,8 @@ class NoteRepositoryTest : BaseUnitTest() {
 
     @Before
     fun setUp() = runBlocking {
-        repository = CalendarRepository(ApplicationProvider.getApplicationContext())
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        repository = CalendarRepository(defaultProfileName = "默认方案", dataStore = context.calendarDataStore)
         repository.clearAll() // Reset for each test
     }
 

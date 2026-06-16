@@ -15,16 +15,19 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.qiuye.calendarkotlin.model.ShiftProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CalendarViewModelTest {
+    private val testClock = java.time.Clock.fixed(java.time.Instant.parse("2026-06-15T12:00:00Z"), java.time.ZoneId.of("UTC"))
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
@@ -39,7 +42,7 @@ class CalendarViewModelTest {
                 showLunar = false,
             )
         )
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
         val emissions = mutableListOf<CalendarUiState>()
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect(emissions::add)
@@ -80,7 +83,7 @@ class CalendarViewModelTest {
                 showLunar = false,
             )
         )
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect {}
         }
@@ -122,7 +125,7 @@ class CalendarViewModelTest {
                 showLunar = false,
             )
         )
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect {}
         }
@@ -156,7 +159,7 @@ class CalendarViewModelTest {
             showLunar = false,
             notes = mapOf(targetDateWithNote.toString() to "已有备注")
         ))
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect {}
         }
@@ -193,7 +196,7 @@ class CalendarViewModelTest {
     fun saveDayDetailWithMultipleDayDuration() = runTest {
         val targetDate = LocalDate.of(2026, 6, 15)
         val repository = FakeCalendarDataStore(CalendarData(showLunar = false))
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect {}
         }
@@ -228,7 +231,7 @@ class CalendarViewModelTest {
             showLunar = false,
             overrides = initialOverrides
         ))
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect {}
         }
@@ -249,7 +252,7 @@ class CalendarViewModelTest {
     @Test
     fun uiStateUsesWhileSubscribedAndResumesCorrectly() = runTest {
         val repository = FakeCalendarDataStore(CalendarData(showLunar = false))
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
 
         // Collect, get initial value, then stop collecting
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -286,7 +289,7 @@ class CalendarViewModelTest {
             showLunar = false,
         )
         val repository = FakeCalendarDataStore(data)
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
 
         val json = viewModel.exportData()
         val decoded = Json.decodeFromString<CalendarData>(json)
@@ -297,7 +300,7 @@ class CalendarViewModelTest {
     fun importDataUpdatesStateWithValidJson() = runTest {
         val initialData = CalendarData(showLunar = true)
         val repository = FakeCalendarDataStore(initialData)
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect {}
         }
@@ -310,7 +313,7 @@ class CalendarViewModelTest {
             )
             val json = Json.encodeToString(newData)
 
-            viewModel.importData(json)
+            viewModel.importData(json, "Imported Profile")
             advanceUntilIdle()
 
             assertEquals(newData.cycleStartDate, repository.data.value.cycleStartDate)
@@ -324,9 +327,9 @@ class CalendarViewModelTest {
     fun importDataDoesNotUpdateStateWithInvalidJson() = runTest {
         val initialData = CalendarData(showLunar = true)
         val repository = FakeCalendarDataStore(initialData)
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
 
-        viewModel.importData("invalid json")
+        viewModel.importData("invalid json", "Imported Profile")
         advanceUntilIdle()
 
         assertEquals(initialData, repository.data.value)
@@ -336,16 +339,16 @@ class CalendarViewModelTest {
     fun importDataSetsErrorMessageOnFailure() = runTest {
         val initialData = CalendarData(showLunar = true)
         val repository = FakeCalendarDataStore(initialData)
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect {}
         }
 
         try {
-            viewModel.importData("invalid json")
+            viewModel.importData("invalid json", "Imported Profile")
             advanceUntilIdle()
 
-            assertEquals("导入失败：文件格式不正确或已损坏", viewModel.uiState.value.errorMessage)
+            assertEquals(com.qiuye.calendarkotlin.R.string.import_failed_invalid_file, viewModel.uiState.value.errorMessageResId)
         } finally {
             collector.cancel()
         }
@@ -355,17 +358,17 @@ class CalendarViewModelTest {
     fun importDataSetsErrorMessageOnUnrelatedJson() = runTest {
         val initialData = CalendarData(showLunar = true)
         val repository = FakeCalendarDataStore(initialData)
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect {}
         }
 
         try {
             val unrelatedJson = "{\"someOtherField\": 1234, \"hello\": \"world\"}"
-            viewModel.importData(unrelatedJson)
+            viewModel.importData(unrelatedJson, "Imported Profile")
             advanceUntilIdle()
 
-            assertEquals("导入失败：文件格式不正确或已损坏", viewModel.uiState.value.errorMessage)
+            assertEquals(com.qiuye.calendarkotlin.R.string.import_failed_invalid_file, viewModel.uiState.value.errorMessageResId)
             assertEquals(initialData, repository.data.value)
         } finally {
             collector.cancel()
@@ -376,21 +379,21 @@ class CalendarViewModelTest {
     fun importDataClearsErrorMessageOnSuccess() = runTest {
         val initialData = CalendarData(showLunar = true)
         val repository = FakeCalendarDataStore(initialData)
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect {}
         }
 
         try {
-            viewModel.importData("invalid json")
+            viewModel.importData("invalid json", "Imported Profile")
             advanceUntilIdle()
-            assertEquals("导入失败：文件格式不正确或已损坏", viewModel.uiState.value.errorMessage)
+            assertEquals(com.qiuye.calendarkotlin.R.string.import_failed_invalid_file, viewModel.uiState.value.errorMessageResId)
 
             val newData = CalendarData(showLunar = false)
-            viewModel.importData(Json.encodeToString(newData))
+            viewModel.importData(Json.encodeToString(newData), "Imported Profile")
             advanceUntilIdle()
 
-            assertNull(viewModel.uiState.value.errorMessage)
+            assertNull(viewModel.uiState.value.errorMessageResId)
         } finally {
             collector.cancel()
         }
@@ -400,20 +403,160 @@ class CalendarViewModelTest {
     fun clearErrorMessageResetsMessage() = runTest {
         val initialData = CalendarData(showLunar = true)
         val repository = FakeCalendarDataStore(initialData)
-        val viewModel = CalendarViewModel(repository)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect {}
         }
 
         try {
-            viewModel.importData("invalid json")
+            viewModel.importData("invalid json", "Imported Profile")
             advanceUntilIdle()
-            assertEquals("导入失败：文件格式不正确或已损坏", viewModel.uiState.value.errorMessage)
+            assertEquals(com.qiuye.calendarkotlin.R.string.import_failed_invalid_file, viewModel.uiState.value.errorMessageResId)
 
             viewModel.clearErrorMessage()
             advanceUntilIdle()
 
-            assertNull(viewModel.uiState.value.errorMessage)
+            assertNull(viewModel.uiState.value.errorMessageResId)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun profileSelectDialogVisibilityState() = runTest {
+        val repository = FakeCalendarDataStore(CalendarData())
+        val viewModel = CalendarViewModel(repository, clock = testClock)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isProfileSelectVisible)
+
+            viewModel.openProfileSelect()
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isProfileSelectVisible)
+
+            viewModel.closeProfileSelect()
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isProfileSelectVisible)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun clearOverridesClearsTheOverrides() = runTest {
+        val targetDate = LocalDate.of(2026, 6, 15)
+        val initialData = CalendarData(
+            overrides = mapOf(targetDate.toString() to defaultPattern.first())
+        )
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            advanceUntilIdle()
+            assertEquals(defaultPattern.first(), viewModel.uiState.value.calendarData.overrides[targetDate.toString()])
+            
+            viewModel.openSettings()
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSettingsVisible)
+
+            viewModel.clearOverrides()
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.calendarData.overrides.isEmpty())
+            assertFalse(viewModel.uiState.value.isSettingsVisible)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun switchProfileUpdatesActiveProfileId() = runTest {
+        val profile1 = ShiftProfile(id = "p1", name = "方案1")
+        val profile2 = ShiftProfile(id = "p2", name = "方案2")
+        val initialData = CalendarData(activeProfileId = "p1", profiles = listOf(profile1, profile2))
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            advanceUntilIdle()
+            assertEquals("p1", viewModel.uiState.value.calendarData.activeProfileId)
+
+            viewModel.switchProfile("p2")
+            advanceUntilIdle()
+
+            assertEquals("p2", viewModel.uiState.value.calendarData.activeProfileId)
+            assertEquals("方案2", viewModel.uiState.value.calendarData.activeProfile.name)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun addNewProfileCreatesNewProfileAndSetsAsActive() = runTest {
+        val initialData = CalendarData()
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            advanceUntilIdle()
+            assertEquals(1, viewModel.uiState.value.calendarData.profiles.size)
+            assertEquals("default", viewModel.uiState.value.calendarData.activeProfileId)
+
+            viewModel.addNewProfile("自定义方案", "New Profile")
+            advanceUntilIdle()
+
+            val profiles = viewModel.uiState.value.calendarData.profiles
+            assertEquals(2, profiles.size)
+            val newProfile = profiles.find { it.id != "default" }
+            assertNotNull(newProfile)
+            assertEquals("自定义方案", newProfile!!.name)
+            assertEquals(newProfile.id, viewModel.uiState.value.calendarData.activeProfileId)
+            
+            // Settings sheet should be opened automatically
+            assertTrue(viewModel.uiState.value.isSettingsVisible)
+            assertFalse(viewModel.uiState.value.isProfileSelectVisible)
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test
+    fun deleteProfileDeletesProfileAndUpdatesActiveIdIfNeeded() = runTest {
+        val profile1 = ShiftProfile(id = "p1", name = "方案1")
+        val profile2 = ShiftProfile(id = "p2", name = "方案2")
+        val initialData = CalendarData(activeProfileId = "p2", profiles = listOf(profile1, profile2))
+        val repository = FakeCalendarDataStore(initialData)
+        val viewModel = CalendarViewModel(repository, clock = testClock)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        try {
+            advanceUntilIdle()
+            assertEquals(2, viewModel.uiState.value.calendarData.profiles.size)
+            assertEquals("p2", viewModel.uiState.value.calendarData.activeProfileId)
+
+            // Delete active profile (p2)
+            viewModel.deleteProfile("p2")
+            advanceUntilIdle()
+
+            val profiles = viewModel.uiState.value.calendarData.profiles
+            assertEquals(1, profiles.size)
+            assertEquals("p1", profiles.first().id)
+            assertEquals("p1", viewModel.uiState.value.calendarData.activeProfileId)
         } finally {
             collector.cancel()
         }
@@ -432,6 +575,8 @@ private class FakeCalendarDataStore(initialData: CalendarData) : CalendarDataSto
 
     override suspend fun updateDetail(dateKey: String, note: String, overrideShift: ShiftDefinition?) {
         val current = data.value
+        val profiles = current.profiles.toMutableList()
+        val activeIndex = profiles.indexOfFirst { it.id == current.activeProfileId }.takeIf { it != -1 } ?: 0
         val nextNotes = current.notes.toMutableMap().apply {
             if (note.isBlank()) {
                 remove(dateKey)
@@ -439,14 +584,18 @@ private class FakeCalendarDataStore(initialData: CalendarData) : CalendarDataSto
                 put(dateKey, note.trim())
             }
         }
-        val nextOverrides = current.overrides.toMutableMap().apply {
-            if (overrideShift == null) {
-                remove(dateKey)
-            } else {
-                put(dateKey, overrideShift)
+        if (activeIndex < profiles.size) {
+            val activeProfile = profiles[activeIndex]
+            val nextOverrides = activeProfile.overrides.toMutableMap().apply {
+                if (overrideShift == null) {
+                    remove(dateKey)
+                } else {
+                    put(dateKey, overrideShift)
+                }
             }
+            profiles[activeIndex] = activeProfile.copy(overrides = nextOverrides)
         }
-        data.value = current.copy(notes = nextNotes, overrides = nextOverrides)
+        data.value = current.copy(profiles = profiles, notes = nextNotes)
     }
 
     override suspend fun updateSettings(
@@ -455,16 +604,31 @@ private class FakeCalendarDataStore(initialData: CalendarData) : CalendarDataSto
         pattern: List<ShiftDefinition>,
         showLunar: Boolean,
     ) {
-        data.value = data.value.copy(
-            cycleStartDate = cycleStartDate,
-            cycleEndDate = cycleEndDate,
-            pattern = pattern,
-            showLunar = showLunar,
+        val current = data.value
+        val profiles = current.profiles.toMutableList()
+        val activeIndex = profiles.indexOfFirst { it.id == current.activeProfileId }.takeIf { it != -1 } ?: 0
+        if (activeIndex < profiles.size) {
+            val activeProfile = profiles[activeIndex]
+            profiles[activeIndex] = activeProfile.copy(
+                cycleStartDate = cycleStartDate,
+                cycleEndDate = cycleEndDate,
+                pattern = pattern
+            )
+        }
+        data.value = current.copy(
+            profiles = profiles,
+            showLunar = showLunar
         )
     }
 
     override suspend fun clearOverrides() {
-        data.value = data.value.copy(overrides = emptyMap())
+        val current = data.value
+        val profiles = current.profiles.toMutableList()
+        val activeIndex = profiles.indexOfFirst { it.id == current.activeProfileId }.takeIf { it != -1 } ?: 0
+        if (activeIndex < profiles.size) {
+            profiles[activeIndex] = profiles[activeIndex].copy(overrides = emptyMap())
+        }
+        data.value = current.copy(profiles = profiles)
     }
 
     override suspend fun clearAll() {

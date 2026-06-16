@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.qiuye.calendarkotlin.R
 import com.qiuye.calendarkotlin.data.CalendarDataStore
 import com.qiuye.calendarkotlin.data.CalendarRepository
 import com.qiuye.calendarkotlin.domain.CalendarCalculator
@@ -14,6 +15,7 @@ import com.qiuye.calendarkotlin.domain.parseStorageDateOrNull
 import com.qiuye.calendarkotlin.domain.toStorageKey
 import com.qiuye.calendarkotlin.model.CalendarData
 import com.qiuye.calendarkotlin.model.ShiftDefinition
+import com.qiuye.calendarkotlin.model.ShiftProfile
 import com.qiuye.calendarkotlin.model.defaultPattern
 import java.time.LocalDate
 import java.time.YearMonth
@@ -27,6 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 
 data class CalendarUiState(
     val currentMonth: YearMonth = YearMonth.now(),
@@ -38,17 +41,27 @@ data class CalendarUiState(
     val isDaySheetVisible: Boolean = false,
     val isRemindersVisible: Boolean = false,
     val isDiaryListVisible: Boolean = false,
-    val errorMessage: String? = null,
+    val isProfileSelectVisible: Boolean = false,
+    val errorMessageResId: Int? = null,
 )
 
-private data class SheetVisibility(
-    val settings: Boolean,
-    val notes: Boolean,
-    val daySheet: Boolean,
-    val reminders: Boolean,
-    val diaryList: Boolean,
-    val error: String?,
-)
+data class SheetState(
+    val isSettingsVisible: Boolean = false,
+    val isNotesVisible: Boolean = false,
+    val isDaySheetVisible: Boolean = false,
+    val isRemindersVisible: Boolean = false,
+    val isDiaryListVisible: Boolean = false,
+    val isProfileSelectVisible: Boolean = false,
+    val errorMessageResId: Int? = null,
+) {
+    fun closeAll(): SheetState = copy(
+        isSettingsVisible = false,
+        isNotesVisible = false,
+                isRemindersVisible = false,
+        isDiaryListVisible = false,
+        isProfileSelectVisible = false,
+    )
+}
 
 data class NoteEntry(
     val date: LocalDate,
@@ -65,19 +78,16 @@ private data class CalendarDataWithNotes(
 
 class CalendarViewModel internal constructor(
     private val repository: CalendarDataStore,
+    private val reminderService: com.qiuye.calendarkotlin.tasks.service.ReminderService? = null,
+    private val clock: java.time.Clock = java.time.Clock.systemDefaultZone(),
 ) : ViewModel() {
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
     }
-    private val currentMonth = MutableStateFlow(YearMonth.now())
+    private val currentMonth = MutableStateFlow(YearMonth.now(clock))
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
-    private val settingsVisible = MutableStateFlow(false)
-    private val notesVisible = MutableStateFlow(false)
-    private val daySheetVisible = MutableStateFlow(false)
-    private val remindersVisible = MutableStateFlow(false)
-    private val diaryListVisible = MutableStateFlow(false)
-    private val errorMessage = MutableStateFlow<String?>(null)
+    private val sheetState = MutableStateFlow(SheetState())
     private val initialCalendarDataWithNotes = CalendarData().toCalendarDataWithNotes()
     private val calendarDataWithNotes: StateFlow<CalendarDataWithNotes> =
         repository.calendarData
@@ -93,24 +103,20 @@ class CalendarViewModel internal constructor(
             calendarDataWithNotes,
             currentMonth,
             selectedDate,
-            combine(
-                combine(settingsVisible, notesVisible, daySheetVisible) { s, n, d -> Triple(s, n, d) },
-                combine(remindersVisible, diaryListVisible, errorMessage) { r, dl, e -> Triple(r, dl, e) }
-            ) { a, b ->
-                SheetVisibility(a.first, a.second, a.third, b.first, b.second, b.third)
-            }
-        ) { dataWithNotes, month, selected, visibility ->
+            sheetState
+        ) { dataWithNotes, month, selected, state ->
             CalendarUiState(
                 currentMonth = month,
                 selectedDate = selected,
                 noteEntries = dataWithNotes.noteEntries,
                 calendarData = dataWithNotes.calendarData,
-                isSettingsVisible = visibility.settings,
-                isNotesVisible = visibility.notes,
-                isDaySheetVisible = visibility.daySheet,
-                isRemindersVisible = visibility.reminders,
-                isDiaryListVisible = visibility.diaryList,
-                errorMessage = visibility.error,
+                isSettingsVisible = state.isSettingsVisible,
+                isNotesVisible = state.isNotesVisible,
+                isDaySheetVisible = state.isDaySheetVisible,
+                isRemindersVisible = state.isRemindersVisible,
+                isDiaryListVisible = state.isDiaryListVisible,
+                isProfileSelectVisible = state.isProfileSelectVisible,
+                errorMessageResId = state.errorMessageResId,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -120,12 +126,6 @@ class CalendarViewModel internal constructor(
                 selectedDate = selectedDate.value,
                 noteEntries = initialCalendarDataWithNotes.noteEntries,
                 calendarData = initialCalendarDataWithNotes.calendarData,
-                isSettingsVisible = settingsVisible.value,
-                isNotesVisible = notesVisible.value,
-                isDaySheetVisible = daySheetVisible.value,
-                isRemindersVisible = remindersVisible.value,
-                isDiaryListVisible = diaryListVisible.value,
-                errorMessage = errorMessage.value,
             ),
         )
 
@@ -134,8 +134,8 @@ class CalendarViewModel internal constructor(
     }
 
     fun showToday() {
-        currentMonth.value = YearMonth.now()
-        selectedDate.value = LocalDate.now()
+        currentMonth.value = YearMonth.now(clock)
+        selectedDate.value = LocalDate.now(clock)
         closeAllSheets()
         dismissDaySheet()
     }
@@ -147,14 +147,14 @@ class CalendarViewModel internal constructor(
         val noteKey = date.toStorageKey()
         val currentNotes = calendarDataWithNotes.value.calendarData.notes
         if (!currentNotes[noteKey].isNullOrBlank()) {
-            daySheetVisible.value = true
+            sheetState.value = sheetState.value.copy(isDaySheetVisible = true)
         }
     }
 
     fun openSelectedDayDetail() {
         if (selectedDate.value == null) return
         closeAllSheets()
-        daySheetVisible.value = true
+        sheetState.value = sheetState.value.copy(isDaySheetVisible = true)
     }
 
     fun closeDaySheet() {
@@ -164,41 +164,41 @@ class CalendarViewModel internal constructor(
     fun openSettings() {
         closeAllSheets()
         dismissDaySheet(clearSelection = true)
-        settingsVisible.value = true
+        sheetState.value = sheetState.value.copy(isSettingsVisible = true)
     }
 
     fun closeSettings() {
-        settingsVisible.value = false
+        sheetState.value = sheetState.value.copy(isSettingsVisible = false)
     }
 
     fun openNotes() {
         closeAllSheets()
         dismissDaySheet(clearSelection = true)
-        notesVisible.value = true
+        sheetState.value = sheetState.value.copy(isNotesVisible = true)
     }
 
     fun closeNotes() {
-        notesVisible.value = false
+        sheetState.value = sheetState.value.copy(isNotesVisible = false)
     }
 
     fun openReminders() {
         closeAllSheets()
         dismissDaySheet(clearSelection = true)
-        remindersVisible.value = true
+        sheetState.value = sheetState.value.copy(isRemindersVisible = true)
     }
 
     fun closeReminders() {
-        remindersVisible.value = false
+        sheetState.value = sheetState.value.copy(isRemindersVisible = false)
     }
 
     fun openDiaryList() {
         closeAllSheets()
         dismissDaySheet(clearSelection = true)
-        diaryListVisible.value = true
+        sheetState.value = sheetState.value.copy(isDiaryListVisible = true)
     }
 
     fun closeDiaryList() {
-        diaryListVisible.value = false
+        sheetState.value = sheetState.value.copy(isDiaryListVisible = false)
     }
 
     fun jumpToDate(date: LocalDate) {
@@ -208,37 +208,162 @@ class CalendarViewModel internal constructor(
         dismissDaySheet()
     }
 
-    suspend fun exportData(): String {
-        val data = repository.getCurrentData()
-        return json.encodeToString(data)
-    }
-
-    fun importData(jsonString: String) {
+    fun exportToFile(uri: android.net.Uri, context: android.content.Context) {
         viewModelScope.launch {
-            runCatching {
-                val element = json.parseToJsonElement(jsonString)
-                val jsonObject = element.jsonObject
-                val hasExpectedKeys = jsonObject.containsKey("pattern") ||
-                        jsonObject.containsKey("notes") ||
-                        jsonObject.containsKey("overrides") ||
-                        jsonObject.containsKey("cycleStartDate") ||
-                        jsonObject.containsKey("cycleEndDate") ||
-                        jsonObject.containsKey("showLunar")
-                if (!hasExpectedKeys) {
-                    throw IllegalArgumentException("Not a calendar backup file")
+            try {
+                val jsonStr = exportData()
+                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    java.io.OutputStreamWriter(outputStream).use { writer ->
+                        writer.write(jsonStr)
+                    }
                 }
-                json.decodeFromString<CalendarData>(jsonString)
-            }.onSuccess { data ->
-                repository.replaceAllData(data)
-                errorMessage.value = null
-            }.onFailure {
-                errorMessage.value = "导入失败：文件格式不正确或已损坏"
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
 
+    internal suspend fun exportData(): String {
+        val data = repository.getCurrentData()
+        return json.encodeToString(data)
+    }
+
+    fun importFromFile(uri: android.net.Uri, context: android.content.Context, importedProfileName: String) {
+        viewModelScope.launch {
+            try {
+                val jsonStr = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    java.io.BufferedReader(java.io.InputStreamReader(inputStream)).use { reader ->
+                        reader.readText()
+                    }
+                }
+                if (!jsonStr.isNullOrBlank()) {
+                    importData(jsonStr, importedProfileName)
+                } else {
+                    sheetState.value = sheetState.value.copy(errorMessageResId = com.qiuye.calendarkotlin.R.string.import_failed_invalid_file)
+                }
+            } catch (e: Exception) {
+                sheetState.value = sheetState.value.copy(errorMessageResId = com.qiuye.calendarkotlin.R.string.import_failed_invalid_file)
+            }
+        }
+    }
+
+    internal suspend fun importData(jsonString: String, importedProfileName: String) {
+        runCatching {
+            val element = json.parseToJsonElement(jsonString)
+            val jsonObject = element.jsonObject
+            val hasExpectedKeys = jsonObject.containsKey("pattern") ||
+                    jsonObject.containsKey("notes") ||
+                    jsonObject.containsKey("overrides") ||
+                    jsonObject.containsKey("cycleStartDate") ||
+                    jsonObject.containsKey("cycleEndDate") ||
+                    jsonObject.containsKey("showLunar") ||
+                    jsonObject.containsKey("profiles")
+            if (!hasExpectedKeys) {
+                throw IllegalArgumentException("Not a calendar backup file")
+            }
+
+            if (jsonObject.containsKey("profiles")) {
+                json.decodeFromString<CalendarData>(jsonString)
+            } else {
+                val cycleStartDate = jsonObject["cycleStartDate"]?.let { json.decodeFromJsonElement<String?>(it) }
+                val cycleEndDate = jsonObject["cycleEndDate"]?.let { json.decodeFromJsonElement<String?>(it) }
+                val pattern = jsonObject["pattern"]?.let { json.decodeFromJsonElement<List<ShiftDefinition>>(it) } ?: defaultPattern
+                val notes = jsonObject["notes"]?.let { json.decodeFromJsonElement<Map<String, String>>(it) } ?: emptyMap()
+                val overrides = jsonObject["overrides"]?.let { json.decodeFromJsonElement<Map<String, ShiftDefinition>>(it) } ?: emptyMap()
+                val showLunar = jsonObject["showLunar"]?.let { json.decodeFromJsonElement<Boolean>(it) } ?: true
+
+                val importedProfile = ShiftProfile(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = importedProfileName,
+                    cycleStartDate = cycleStartDate,
+                    cycleEndDate = cycleEndDate,
+                    pattern = pattern,
+                    overrides = overrides
+                )
+
+                val current = repository.getCurrentData()
+                val oldActiveId = current.activeProfileId
+                val mergedNotes = current.notes.toMutableMap().apply {
+                    putAll(notes)
+                }
+                val updated = current.copy(
+                    profiles = current.profiles + importedProfile,
+                    activeProfileId = importedProfile.id,
+                    showLunar = showLunar,
+                    notes = mergedNotes
+                )
+
+                reminderService?.rescheduleAlarmsForProfileSwitch(oldActiveId, importedProfile.id)
+                updated
+            }
+        }.onSuccess { data ->
+            repository.replaceAllData(data)
+            sheetState.value = sheetState.value.copy(errorMessageResId = null)
+        }.onFailure {
+            sheetState.value = sheetState.value.copy(errorMessageResId = com.qiuye.calendarkotlin.R.string.import_failed_invalid_file)
+        }
+    }
+
     fun clearErrorMessage() {
-        errorMessage.value = null
+        sheetState.value = sheetState.value.copy(errorMessageResId = null)
+    }
+
+    fun switchProfile(newProfileId: String) {
+        viewModelScope.launch {
+            val current = repository.getCurrentData()
+            val oldId = current.activeProfileId
+            if (oldId == newProfileId) return@launch
+            val updated = current.copy(activeProfileId = newProfileId)
+            repository.replaceAllData(updated)
+
+            reminderService?.rescheduleAlarmsForProfileSwitch(oldId, newProfileId)
+        }
+    }
+
+    fun addNewProfile(name: String, defaultName: String) {
+        viewModelScope.launch {
+            val current = repository.getCurrentData()
+            val newId = java.util.UUID.randomUUID().toString()
+            val newProfile = ShiftProfile(
+                id = newId,
+                name = name.trim().ifBlank { defaultName },
+                pattern = emptyList() // start empty as requested
+            )
+            val updatedProfiles = current.profiles + newProfile
+            val updated = current.copy(
+                activeProfileId = newId,
+                profiles = updatedProfiles
+            )
+            repository.replaceAllData(updated)
+
+            reminderService?.rescheduleAlarmsForProfileSwitch(current.activeProfileId, newId)
+
+            sheetState.value = sheetState.value.copy(isProfileSelectVisible = false)
+            sheetState.value = sheetState.value.copy(isSettingsVisible = true)
+        }
+    }
+
+    fun deleteProfile(profileId: String) {
+        viewModelScope.launch {
+            val current = repository.getCurrentData()
+            if (current.profiles.size <= 1) return@launch
+            val activeId = current.activeProfileId
+            val updatedProfiles = current.profiles.filter { it.id != profileId }
+            val newActiveId = if (activeId == profileId) {
+                updatedProfiles.first().id
+            } else {
+                activeId
+            }
+            val updated = current.copy(
+                activeProfileId = newActiveId,
+                profiles = updatedProfiles
+            )
+            repository.replaceAllData(updated)
+
+            if (activeId != newActiveId) {
+                reminderService?.rescheduleAlarmsForProfileSwitch(activeId, newActiveId)
+            }
+        }
     }
 
     fun saveDayDetail(date: LocalDate, note: String, overrideShift: ShiftDefinition?, durationDays: Int = 1) {
@@ -263,10 +388,19 @@ class CalendarViewModel internal constructor(
                 }
             }
 
+            val updatedProfiles = current.profiles.map { profile ->
+                if (profile.id == current.activeProfileId) {
+                    profile.copy(
+                        overrides = updatedOverrides
+                    )
+                } else {
+                    profile
+                }
+            }
             repository.replaceAllData(
                 current.copy(
-                    notes = updatedNotes,
-                    overrides = updatedOverrides
+                    profiles = updatedProfiles,
+                    notes = updatedNotes
                 )
             )
             dismissDaySheet(clearSelection = true)
@@ -286,6 +420,7 @@ class CalendarViewModel internal constructor(
     }
 
     fun saveSettings(
+        profileName: String,
         cycleStartDate: String?,
         cycleEndDate: String?,
         pattern: List<ShiftDefinition>,
@@ -295,11 +430,24 @@ class CalendarViewModel internal constructor(
         val normalizedCycleEndDate = cycleEndDate?.takeIf { it.isNotBlank() }
         val normalizedPattern = pattern.ifEmpty { defaultPattern }
         viewModelScope.launch {
-            repository.updateSettings(
-                cycleStartDate = normalizedCycleStartDate,
-                cycleEndDate = normalizedCycleEndDate,
-                pattern = normalizedPattern,
-                showLunar = showLunar,
+            val current = repository.getCurrentData()
+            val updatedProfiles = current.profiles.map { profile ->
+                if (profile.id == current.activeProfileId) {
+                    profile.copy(
+                        name = profileName.trim().ifBlank { profile.name },
+                        cycleStartDate = normalizedCycleStartDate,
+                        cycleEndDate = normalizedCycleEndDate,
+                        pattern = normalizedPattern
+                    )
+                } else {
+                    profile
+                }
+            }
+            repository.replaceAllData(
+                current.copy(
+                    profiles = updatedProfiles,
+                    showLunar = showLunar
+                )
             )
 
             normalizedCycleStartDate
@@ -307,28 +455,36 @@ class CalendarViewModel internal constructor(
                 ?.let { currentMonth.value = YearMonth.from(it) }
 
             dismissDaySheet(clearSelection = true)
-            settingsVisible.value = false
+            sheetState.value = sheetState.value.copy(isSettingsVisible = false)
         }
     }
 
     fun clearOverrides() {
         viewModelScope.launch {
             repository.clearOverrides()
+            sheetState.value = sheetState.value.copy(isSettingsVisible = false)
         }
     }
 
     private fun dismissDaySheet(clearSelection: Boolean = false) {
-        daySheetVisible.value = false
+        sheetState.value = sheetState.value.copy(isDaySheetVisible = false)
         if (clearSelection) {
             selectedDate.value = null
         }
     }
 
+    fun openProfileSelect() {
+        closeAllSheets()
+        dismissDaySheet(clearSelection = true)
+        sheetState.value = sheetState.value.copy(isProfileSelectVisible = true)
+    }
+
+    fun closeProfileSelect() {
+        sheetState.value = sheetState.value.copy(isProfileSelectVisible = false)
+    }
+
     private fun closeAllSheets() {
-        settingsVisible.value = false
-        notesVisible.value = false
-        remindersVisible.value = false
-        diaryListVisible.value = false
+        sheetState.value = sheetState.value.closeAll()
     }
 
     private fun CalendarData.toCalendarDataWithNotes(): CalendarDataWithNotes =
@@ -358,8 +514,10 @@ class CalendarViewModel internal constructor(
     companion object {
         fun factory(context: Context): ViewModelProvider.Factory = viewModelFactory {
             initializer {
+                val appContext = context.applicationContext
                 CalendarViewModel(
-                    repository = CalendarRepository(context.applicationContext),
+                    repository = com.qiuye.calendarkotlin.tasks.TasksGraph.calendarRepository(appContext),
+                    reminderService = com.qiuye.calendarkotlin.tasks.TasksGraph.reminderService(appContext),
                 )
             }
         }

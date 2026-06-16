@@ -18,6 +18,10 @@ import org.robolectric.RuntimeEnvironment
 import java.util.concurrent.CopyOnWriteArrayList
 import com.qiuye.calendarkotlin.BaseUnitTest
 
+import com.qiuye.calendarkotlin.data.CalendarDataStore
+import com.qiuye.calendarkotlin.model.CalendarData
+import com.qiuye.calendarkotlin.model.ShiftDefinition
+
 class ReminderServiceTest : BaseUnitTest() {
     private lateinit var database: ReminderDatabase
     private lateinit var repository: ReminderRepository
@@ -25,6 +29,21 @@ class ReminderServiceTest : BaseUnitTest() {
     private lateinit var deliveredReminders: MutableList<ReminderEntity>
     private lateinit var cancelledReminderIds: MutableList<Long>
     private lateinit var service: ReminderService
+
+    private val fakeCalendarRepository = object : CalendarDataStore {
+        override val calendarData = kotlinx.coroutines.flow.MutableStateFlow(CalendarData())
+        override suspend fun getCurrentData() = CalendarData()
+        override suspend fun updateDetail(dateKey: String, note: String, overrideShift: ShiftDefinition?) {}
+        override suspend fun updateSettings(
+            cycleStartDate: String?,
+            cycleEndDate: String?,
+            pattern: List<ShiftDefinition>,
+            showLunar: Boolean
+        ) {}
+        override suspend fun clearOverrides() {}
+        override suspend fun clearAll() {}
+        override suspend fun replaceAllData(data: CalendarData) {}
+    }
 
     @Before
     fun setUp() {
@@ -40,6 +59,7 @@ class ReminderServiceTest : BaseUnitTest() {
             repository = repository,
             scheduler = scheduler,
             context = context,
+            calendarRepository = fakeCalendarRepository,
             notificationPermissionChecker = { false },
             notificationDeliverer = { _, reminder ->
                 deliveredReminders += reminder
@@ -65,8 +85,7 @@ class ReminderServiceTest : BaseUnitTest() {
 
         val result = service.saveReminder(
             reminderId = null,
-            title = "Task",
-            note = "note",
+            input = "Task\nnote",
             scheduledAtMillis = futureMillis,
             allowPast = true
         )
@@ -247,8 +266,7 @@ class ReminderServiceTest : BaseUnitTest() {
     fun saveReminder_rejectsBlankTitle() = runBlocking {
         val result = service.saveReminder(
             reminderId = null,
-            title = "   ",
-            note = "note",
+            input = "   \nnote",
             scheduledAtMillis = System.currentTimeMillis() + 60_000,
             allowPast = true
         )
@@ -260,8 +278,7 @@ class ReminderServiceTest : BaseUnitTest() {
     fun saveReminder_requiresConfirmationForPastTime() = runBlocking {
         val result = service.saveReminder(
             reminderId = null,
-            title = "Task",
-            note = "note",
+            input = "Task\nnote",
             scheduledAtMillis = System.currentTimeMillis() - 60_000,
             allowPast = false
         )
@@ -286,8 +303,7 @@ class ReminderServiceTest : BaseUnitTest() {
 
         val result = service.saveReminder(
             reminderId = existingId,
-            title = "  Updated title  ",
-            note = "  Updated note  ",
+            input = "  Updated title  \n  Updated note  ",
             scheduledAtMillis = System.currentTimeMillis() + 60_000,
             allowPast = true
         )
@@ -302,6 +318,49 @@ class ReminderServiceTest : BaseUnitTest() {
         assertFalse(success.needsNotificationWarning)
         assertFalse(success.needsExactAlarmWarning)
         assertTrue(scheduler.cancelCalls.contains(existingId))
+    }
+
+    
+    @Test
+    fun saveReminder_splitsSingleLineInputToTitleAndEmptyNote() = runBlocking {
+        scheduler.canScheduleExactAlarmsResult = false
+        val result = service.saveReminder(
+            reminderId = null,
+            input = "去超市买牛奶",
+            scheduledAtMillis = System.currentTimeMillis() + 60_000,
+            allowPast = true
+        )
+        assertTrue(result is SaveReminderResult.Success)
+        val success = result as SaveReminderResult.Success
+        assertEquals("去超市买牛奶", success.reminder.title)
+        assertEquals("", success.reminder.note)
+    }
+
+    @Test
+    fun saveReminder_splitsMultiLineInputToTitleAndNote() = runBlocking {
+        scheduler.canScheduleExactAlarmsResult = false
+        val result = service.saveReminder(
+            reminderId = null,
+            input = "去超市买牛奶\n买脱脂的\n顺便带包盐",
+            scheduledAtMillis = System.currentTimeMillis() + 60_000,
+            allowPast = true
+        )
+        assertTrue(result is SaveReminderResult.Success)
+        val success = result as SaveReminderResult.Success
+        assertEquals("去超市买牛奶", success.reminder.title)
+        assertEquals("买脱脂的\n顺便带包盐", success.reminder.note)
+    }
+
+    @Test
+    fun saveReminder_handlesWhitespaceInInput() = runBlocking {
+        scheduler.canScheduleExactAlarmsResult = false
+        val result = service.saveReminder(
+            reminderId = null,
+            input = "   \n  some note  ",
+            scheduledAtMillis = System.currentTimeMillis() + 60_000,
+            allowPast = true
+        )
+        assertTrue(result is SaveReminderResult.ValidationError)
     }
 
     private class RecordingScheduler : ReminderScheduler {

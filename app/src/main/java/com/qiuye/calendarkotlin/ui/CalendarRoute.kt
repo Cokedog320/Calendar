@@ -1,6 +1,7 @@
 package com.qiuye.calendarkotlin.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,6 +36,8 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.qiuye.calendarkotlin.R
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -64,9 +68,12 @@ import com.qiuye.calendarkotlin.tasks.ui.viewmodel.TasksViewModel
 import kotlinx.coroutines.launch
 import com.qiuye.calendarkotlin.diary.ui.DiaryViewModel
 import com.qiuye.calendarkotlin.diary.ui.DiaryListBottomSheet
+import com.qiuye.calendarkotlin.tasks.data.ReminderEntity
+import com.qiuye.calendarkotlin.tasks.data.localDate
 
 private val pagerStartMonth: YearMonth = YearMonth.of(1900, 1)
 private val pagerPageCount = (2100 - 1900) * 12
+
 
 @Composable
 fun CalendarRoute(
@@ -91,18 +98,7 @@ fun CalendarRoute(
         contract = ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
         uri?.let { targetUri ->
-            coroutineScope.launch {
-                try {
-                    val json = viewModel.exportData()
-                    context.contentResolver.openOutputStream(targetUri)?.use { outputStream ->
-                        OutputStreamWriter(outputStream).use { writer ->
-                            writer.write(json)
-                        }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
+            viewModel.exportToFile(targetUri, context)
         }
     }
 
@@ -110,22 +106,7 @@ fun CalendarRoute(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
         uri?.let { targetUri ->
-            coroutineScope.launch {
-                try {
-                    val json = context.contentResolver.openInputStream(targetUri)?.use { inputStream ->
-                        BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                            reader.readText()
-                        }
-                    }
-                    if (!json.isNullOrBlank()) {
-                        viewModel.importData(json)
-                    } else {
-                        viewModel.importData("INVALID_JSON")
-                    }
-                } catch (e: Exception) {
-                    viewModel.importData("INVALID_JSON")
-                }
-            }
+            viewModel.importFromFile(targetUri, context, context.getString(com.qiuye.calendarkotlin.R.string.imported_profile))
         }
     }
 
@@ -147,6 +128,8 @@ fun CalendarRoute(
         onCloseRemindersCenter = viewModel::closeReminders,
         onOpenDiaryList = viewModel::openDiaryList,
         onCloseDiaryList = viewModel::closeDiaryList,
+        onOpenProfileSelect = viewModel::openProfileSelect,
+        onCloseProfileSelect = viewModel::closeProfileSelect,
         onOpenDiaryEdit = {
             val selected = uiState.selectedDate
             if (selected != null) {
@@ -159,11 +142,7 @@ fun CalendarRoute(
         onSelectDate = { date ->
             viewModel.selectDate(date)
             // Also auto-open if the date has reminders
-            val hasReminders = reminders.any { reminder ->
-                java.time.Instant.ofEpochMilli(reminder.scheduledAtMillis)
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDate() == date
-            }
+            val hasReminders = reminders.any { reminder -> reminder.localDate == date }
             if (hasReminders) {
                 viewModel.openSelectedDayDetail()
             }
@@ -219,6 +198,8 @@ private fun CalendarScreen(
     onCloseRemindersCenter: () -> Unit,
     onOpenDiaryList: () -> Unit,
     onCloseDiaryList: () -> Unit,
+    onOpenProfileSelect: () -> Unit,
+    onCloseProfileSelect: () -> Unit,
     onOpenDiaryEdit: () -> Unit,
     onSearchDiary: (String) -> Unit,
     onSaveDiary: (java.time.LocalDate, String, String) -> Unit,
@@ -227,7 +208,7 @@ private fun CalendarScreen(
     onOpenSelectedDayDetail: () -> Unit,
     onCloseDaySheet: () -> Unit,
     onSaveDayDetail: (java.time.LocalDate, String, com.qiuye.calendarkotlin.model.ShiftDefinition?, Int) -> Unit,
-    onSaveSettings: (String?, String?, List<com.qiuye.calendarkotlin.model.ShiftDefinition>, Boolean) -> Unit,
+    onSaveSettings: (String, String?, String?, List<com.qiuye.calendarkotlin.model.ShiftDefinition>, Boolean) -> Unit,
     onClearOverrides: () -> Unit,
     onJumpToDate: (java.time.LocalDate) -> Unit,
     onToggleTask: (com.qiuye.calendarkotlin.tasks.data.ReminderEntity) -> Unit,
@@ -242,6 +223,7 @@ private fun CalendarScreen(
 ) {
     val palette = remember(uiState.currentMonth.monthValue) { seasonPaletteFor(uiState.currentMonth.monthValue) }
     val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val latestOnMonthChanged = rememberUpdatedState(onMonthChanged)
     val latestCurrentMonth = rememberUpdatedState(uiState.currentMonth)
@@ -250,11 +232,7 @@ private fun CalendarScreen(
         pageCount = { pagerPageCount },
     )
     val reminderDates = remember(reminders) {
-        reminders.map { reminder ->
-            java.time.Instant.ofEpochMilli(reminder.scheduledAtMillis)
-                .atZone(java.time.ZoneId.systemDefault())
-                .toLocalDate()
-        }.toSet()
+        reminders.map { it.localDate }.toSet()
     }
 
     val handleToday = {
@@ -284,8 +262,9 @@ private fun CalendarScreen(
             }
     }
 
-    LaunchedEffect(uiState.errorMessage) {
-        uiState.errorMessage?.let { message ->
+    LaunchedEffect(uiState.errorMessageResId) {
+        uiState.errorMessageResId?.let { resId ->
+            val message = context.getString(resId)
             snackbarHostState.showSnackbar(message)
             viewModel.clearErrorMessage()
         }
@@ -297,12 +276,29 @@ private fun CalendarScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "倒班助手",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleLarge,
-                        )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clickable { onOpenProfileSelect() }
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .testTag("title_app_bar")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Spacer(modifier = Modifier.size(20.dp))
+                            Text(
+                                text = uiState.calendarData.activeProfile.name,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                            Icon(
+                                imageVector = Icons.Rounded.KeyboardArrowDown,
+                                contentDescription = stringResource(R.string.switch_profile),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                         Row(
                             modifier = Modifier.offset(x = (-4).dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -328,7 +324,7 @@ private fun CalendarScreen(
                         onClick = onOpenSettings,
                         modifier = Modifier.testTag("btn_settings"),
                     ) {
-                        Icon(Icons.Rounded.Settings, contentDescription = "设置")
+                        Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.settings))
                     }
                 },
             )
@@ -345,8 +341,8 @@ private fun CalendarScreen(
                         if (uiState.isNotesVisible) onCloseNotes()
                         if (uiState.isDiaryListVisible) onCloseDiaryList()
                     },
-                    icon = { Icon(Icons.Rounded.DateRange, contentDescription = "日历") },
-                    label = { Text("日历") },
+                    icon = { Icon(Icons.Rounded.DateRange, contentDescription = stringResource(R.string.tab_calendar)) },
+                    label = { Text(stringResource(R.string.tab_calendar)) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = palette.accent,
                         selectedTextColor = palette.accent,
@@ -362,8 +358,8 @@ private fun CalendarScreen(
                             onOpenRemindersCenter()
                         }
                     },
-                    icon = { Icon(Icons.Rounded.Notifications, contentDescription = "任务提醒") },
-                    label = { Text("任务") },
+                    icon = { Icon(Icons.Rounded.Notifications, contentDescription = stringResource(R.string.tab_task_reminders)) },
+                    label = { Text(stringResource(R.string.tab_tasks)) },
                     modifier = Modifier.testTag("btn_reminders"),
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = palette.accent,
@@ -380,8 +376,8 @@ private fun CalendarScreen(
                             onOpenDiaryList()
                         }
                     },
-                    icon = { Icon(Icons.Rounded.EditNote, contentDescription = "日记") },
-                    label = { Text("日记") },
+                    icon = { Icon(Icons.Rounded.EditNote, contentDescription = stringResource(R.string.tab_diary)) },
+                    label = { Text(stringResource(R.string.tab_diary)) },
                     modifier = Modifier.testTag("btn_diary"),
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = palette.accent,
@@ -398,8 +394,8 @@ private fun CalendarScreen(
                             onOpenNotes()
                         }
                     },
-                    icon = { Icon(Icons.AutoMirrored.Rounded.List, contentDescription = "备忘录") },
-                    label = { Text("备忘录") },
+                    icon = { Icon(Icons.AutoMirrored.Rounded.List, contentDescription = stringResource(R.string.tab_notes)) },
+                    label = { Text(stringResource(R.string.tab_notes)) },
                     modifier = Modifier.testTag("btn_notes"),
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = palette.accent,
@@ -483,6 +479,18 @@ private fun CalendarScreen(
                     onSave = onSaveSettings,
                     onExport = onExport,
                     onImport = onImport,
+                    onSwitchProfile = viewModel::switchProfile,
+                    onAddProfile = { name -> viewModel.addNewProfile(name, context.getString(com.qiuye.calendarkotlin.R.string.new_shift_profile)) },
+                    onDeleteProfile = viewModel::deleteProfile,
+                )
+            } else if (uiState.isProfileSelectVisible) {
+                ProfileSelectBottomSheet(
+                    calendarData = uiState.calendarData,
+                    onDismiss = onCloseProfileSelect,
+                    onSwitchProfile = viewModel::switchProfile,
+                    onAddProfile = { name -> viewModel.addNewProfile(name, context.getString(com.qiuye.calendarkotlin.R.string.new_shift_profile)) },
+                    onDeleteProfile = viewModel::deleteProfile,
+                    onOpenSettings = onOpenSettings,
                 )
             } else if (uiState.isNotesVisible) {
                 NotesBottomSheet(
@@ -528,10 +536,7 @@ private fun CalendarScreen(
                     }
                     val dateReminders = remember(selected, reminders) {
                         reminders.filter { reminder ->
-                            val reminderDate = java.time.Instant.ofEpochMilli(reminder.scheduledAtMillis)
-                                .atZone(java.time.ZoneId.systemDefault())
-                                .toLocalDate()
-                            reminderDate == selected
+                            reminder.localDate == selected
                         }
                     }
                     DayDetailBottomSheet(

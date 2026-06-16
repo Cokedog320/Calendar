@@ -9,6 +9,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import com.qiuye.calendarkotlin.data.calendarDataStore
 
 class ShiftConfigRepositoryTest : BaseUnitTest() {
 
@@ -30,8 +31,9 @@ class ShiftConfigRepositoryTest : BaseUnitTest() {
 
     @Before
     fun setUp() = runBlocking {
-        repository = CalendarRepository(ApplicationProvider.getApplicationContext())
-        repository.clearAll()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        repository = CalendarRepository(defaultProfileName = "默认方案", dataStore = context.calendarDataStore)
+        repository.clearAll() // Reset for each test
     }
 
     @Test

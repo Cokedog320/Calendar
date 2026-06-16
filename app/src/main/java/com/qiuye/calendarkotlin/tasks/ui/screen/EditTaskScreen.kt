@@ -111,7 +111,7 @@ fun EditTaskScreen(
     onRequestNotificationPermission: () -> Unit,
     onRequestExactAlarmPermission: () -> Unit,
     onNavigateBack: () -> Unit,
-    onSave: suspend (Long?, String, String, Long, Int, Boolean) -> SaveReminderResult,
+    onSave: suspend (Long?, String, Long, Int, Boolean) -> SaveReminderResult,
     onDelete: (suspend (Long) -> Unit)?,
     onLoadReminder: suspend (Long) -> ReminderEntity?
 ) {
@@ -192,11 +192,8 @@ fun EditTaskScreen(
 
     suspend fun performSave(allowPast: Boolean) {
         pendingSave = true
-        val lines = title.lines()
-        val titleToSave = lines.firstOrNull()?.trim().orEmpty()
-        val noteToSave = lines.drop(1).joinToString("\n").trim()
 
-        when (val result = onSave(reminderId, titleToSave, noteToSave, dateStartMillis, minutesOfDay, allowPast)) {
+        when (val result = onSave(reminderId, title, dateStartMillis, minutesOfDay, allowPast)) {
             is SaveReminderResult.Success -> {
                 val baseMessage = if (result.scheduledAlarm) "保存成功" else "已保存（时间已过去，不会闹铃）"
                 val warning = if (result.needsNotificationWarning || result.needsExactAlarmWarning) {

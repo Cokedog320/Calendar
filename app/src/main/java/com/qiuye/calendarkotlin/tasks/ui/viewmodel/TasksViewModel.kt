@@ -1,4 +1,4 @@
-﻿package com.qiuye.calendarkotlin.tasks.ui.viewmodel
+package com.qiuye.calendarkotlin.tasks.ui.viewmodel
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -11,16 +11,26 @@ import com.qiuye.calendarkotlin.tasks.data.ReminderEntity
 import com.qiuye.calendarkotlin.tasks.data.combineDateAndMinutes
 import com.qiuye.calendarkotlin.tasks.service.ReminderService
 import com.qiuye.calendarkotlin.tasks.service.SaveReminderResult
+import com.qiuye.calendarkotlin.data.CalendarDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class TasksViewModel internal constructor(
     private val service: ReminderService,
+    private val calendarRepository: CalendarDataStore,
 ) : ViewModel() {
 
-    val reminders = service.observeReminders()
+    val reminders = calendarRepository.calendarData
+        .map { it.activeProfileId }
+        .distinctUntilChanged()
+        .flatMapLatest { profileId ->
+            service.observeReminders(profileId)
+        }
         .map { reminders ->
             val now = System.currentTimeMillis()
             reminders.sortedWith(
@@ -39,14 +49,14 @@ class TasksViewModel internal constructor(
 
     suspend fun saveReminder(
         reminderId: Long?,
-        title: String,
-        note: String,
+        input: String,
         dateStartMillis: Long,
         minutesOfDay: Int,
         allowPast: Boolean
     ): SaveReminderResult {
         val scheduledAtMillis = combineDateAndMinutes(dateStartMillis, minutesOfDay)
-        return service.saveReminder(reminderId, title, note, scheduledAtMillis, allowPast)
+        val activeProfileId = calendarRepository.getCurrentData().activeProfileId
+        return service.saveReminder(reminderId, input, scheduledAtMillis, allowPast, activeProfileId)
     }
 
     suspend fun toggleCompletion(reminderId: Long, completed: Boolean) {
@@ -72,8 +82,10 @@ class TasksViewModel internal constructor(
     companion object {
         fun factory(context: Context): ViewModelProvider.Factory = viewModelFactory {
             initializer {
+                val appContext = context.applicationContext
                 TasksViewModel(
-                    service = TasksGraph.reminderService(context.applicationContext),
+                    service = TasksGraph.reminderService(appContext),
+                    calendarRepository = TasksGraph.calendarRepository(appContext)
                 )
             }
         }
