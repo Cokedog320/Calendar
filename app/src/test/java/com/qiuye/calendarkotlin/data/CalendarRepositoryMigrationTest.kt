@@ -47,7 +47,7 @@ class CalendarRepositoryMigrationTest : BaseUnitTest() {
             prefs[cycleStartDateKey] = "2024-01-01"
         }
 
-        val repository = CalendarRepository(dataStore = testDataStore)
+        val repository = CalendarRepository(defaultProfileName = "默认方案", dataStore = testDataStore)
         val data = repository.getCurrentData()
 
         assertEquals("default", data.activeProfileId)
@@ -90,7 +90,7 @@ class CalendarRepositoryMigrationTest : BaseUnitTest() {
             prefs[globalNotesKey] = Json.encodeToString(mapOf("2024-01-01" to "Existing global note"))
         }
 
-        val repository = CalendarRepository(dataStore = testDataStore)
+        val repository = CalendarRepository(defaultProfileName = "默认方案", dataStore = testDataStore)
         val data = repository.getCurrentData()
         
         assertEquals(2, data.profiles.size)

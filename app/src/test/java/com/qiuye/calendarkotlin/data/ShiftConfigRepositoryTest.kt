@@ -32,7 +32,7 @@ class ShiftConfigRepositoryTest : BaseUnitTest() {
     @Before
     fun setUp() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        repository = CalendarRepository(dataStore = context.calendarDataStore)
+        repository = CalendarRepository(defaultProfileName = "默认方案", dataStore = context.calendarDataStore)
         repository.clearAll() // Reset for each test
     }
 

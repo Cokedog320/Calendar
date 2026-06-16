@@ -43,8 +43,9 @@ interface CalendarDataStore {
 }
 
 class CalendarRepository(
-    private val defaultProfileName: String = "默认方案",
-private val dataStore: androidx.datastore.core.DataStore<Preferences>) : CalendarDataStore {
+    private val defaultProfileName: String,
+    private val dataStore: androidx.datastore.core.DataStore<Preferences>
+) : CalendarDataStore {
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true

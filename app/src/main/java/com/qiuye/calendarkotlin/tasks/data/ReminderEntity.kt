@@ -16,4 +16,10 @@ data class ReminderEntity(
     val profileId: String = "default"
 )
 
+val ReminderEntity.localDate: java.time.LocalDate
+    get() = java.time.Instant.ofEpochMilli(scheduledAtMillis)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDate()
+
+
 
