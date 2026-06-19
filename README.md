@@ -12,6 +12,11 @@
 
 ### 最近更新 (🌟 Recent Updates)
 
+- 🎨 **主题三态切换（主页一键）与深色季节高对比优化**：
+  - 主页右上角主题按钮升级为三态循环：**跟随系统 → 浅色 → 深色**，并为三种模式提供不同图标（含“跟随系统”专属图标）。
+  - 季节强调色支持按明暗模式分别取值；在深色表面（底栏、今日圆圈、选中边框）使用提亮 accent，显著提升秋/冬主题可读性与对比度。
+- ✅ **UI 仪器化测试稳定性修复**：
+  - 修复 `CalendarUiTest` 中因持久化备注状态导致的用例间相互影响，消除全量跑偶发失败（单跑通过、全量偶发失败）问题。
 - 🗓️ **多方案排班管理与独立提醒隔离**：
   - 引入了多套排班方案（Profiles）的创建、切换与删除功能，支持在主界面点击顶部栏标题快速拉起方案切换抽屉。
   - 不同方案下的任务提醒进行按方案 ID 隔离，切换方案时仅显示和响应该方案的专属提醒，切换时系统闹钟自动重新注册。
@@ -89,6 +94,11 @@ This repository serves as a reliable, clean, and highly robust daily utility too
 
 ### 🌟 Recent Updates
 
+- 🎨 **Tri-State Theme Toggle (Home Quick Switch) + Dark Season Contrast Upgrade**:
+  - Upgraded the top-right home theme button to a 3-state cycle: **System → Light → Dark**, with distinct icons for each mode (including a dedicated System icon).
+  - Season accents now support light/dark variants; dark surfaces (bottom bar, today badge, selected borders) use brighter accents for better readability, especially in Autumn/Winter themes.
+- ✅ **Instrumented UI Test Stability Fix**:
+  - Fixed state leakage across `CalendarUiTest` cases caused by persisted notes, removing flaky failures that appeared in full-suite runs.
 - 🗓️ **Multi-Profile Shift Management & Segregated Reminders**:
   - Introduced creating, switching, and deleting multiple shift profiles. Users can tap the top bar title to invoke the profile switcher drawer.
   - Reminders are now segregated by profile ID, ensuring that only reminders belonging to the active profile are displayed and scheduled via system alarms.
