@@ -12,6 +12,9 @@
 
 ### 最近更新 (🌟 Recent Updates)
 
+- 🧳 **日期详情页手动改班新增“出差”（橙色）**：
+  - 在点击日期后的手动改班区域新增“出差”选项，位于“休假”旁边，颜色为橙色，便于与常规班次和休假快速区分。
+  - 出差支持按天覆盖规律排班，并补充了对应的单元测试覆盖（含常量属性、覆盖优先级与调色板断言）。
 - 🎨 **主题三态切换（主页一键）与深色季节高对比优化**：
   - 主页右上角主题按钮升级为三态循环：**跟随系统 → 浅色 → 深色**，并为三种模式提供不同图标（含“跟随系统”专属图标）。
   - 季节强调色支持按明暗模式分别取值；在深色表面（底栏、今日圆圈、选中边框）使用提亮 accent，显著提升秋/冬主题可读性与对比度。
@@ -94,6 +97,9 @@ This repository serves as a reliable, clean, and highly robust daily utility too
 
 ### 🌟 Recent Updates
 
+- 🧳 **Added “Business Trip” (Orange) to Manual Shift Override in Day Details**:
+  - Added a new **Business Trip** option in the manual shift section opened after tapping a date, next to **Vacation**, with an orange color for quick visual distinction.
+  - Business Trip supports per-day override over pattern shifts, with unit-test coverage for constant fields, override precedence, and palette assertions.
 - 🎨 **Tri-State Theme Toggle (Home Quick Switch) + Dark Season Contrast Upgrade**:
   - Upgraded the top-right home theme button to a 3-state cycle: **System → Light → Dark**, with distinct icons for each mode (including a dedicated System icon).
   - Season accents now support light/dark variants; dark surfaces (bottom bar, today badge, selected borders) use brighter accents for better readability, especially in Autumn/Winter themes.
