@@ -45,8 +45,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.qiuye.calendarkotlin.R
 import com.qiuye.calendarkotlin.domain.parseStorageDateOrNull
+import com.qiuye.calendarkotlin.ui.theme.isEnglishAppLocale
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
@@ -211,7 +214,7 @@ private fun ChineseDatePickerBottomSheet(
                     WheelPicker(
                         values = months,
                         selectedValue = selectedMonth,
-                        label = ::chineseMonthName,
+                        label = ::monthWheelName,
                         onValueSelected = { selectedMonth = it },
                         modifier = Modifier
                             .weight(1f)
@@ -220,7 +223,7 @@ private fun ChineseDatePickerBottomSheet(
                     WheelPicker(
                         values = days,
                         selectedValue = selectedDay.coerceAtMost(dayCount),
-                        label = ::chineseDayName,
+                        label = ::dayWheelName,
                         onValueSelected = { selectedDay = it },
                         modifier = Modifier
                             .weight(1f)
@@ -342,7 +345,19 @@ private data class WheelScrollPosition(
     val isScrolling: Boolean,
 )
 
-private fun chineseMonthName(month: Int): String = "${chineseNumber(month)}月"
+private fun monthWheelName(month: Int): String =
+    if (isEnglishAppLocale()) {
+        java.time.Month.of(month).getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
+    } else {
+        "${chineseNumber(month)}月"
+    }
+
+private fun dayWheelName(day: Int): String =
+    if (isEnglishAppLocale()) {
+        day.toString()
+    } else {
+        chineseDayName(day)
+    }
 
 private fun chineseDayName(day: Int): String = when (day) {
     in 1..10 -> "${chineseNumber(day)}日"

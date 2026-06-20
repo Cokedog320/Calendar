@@ -8,6 +8,7 @@ import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material.icons.rounded.Eco
 import androidx.compose.material.icons.rounded.AcUnit
 import com.qiuye.calendarkotlin.model.ShiftColorOption
+import com.qiuye.calendarkotlin.ui.theme.isEnglishAppLocale
 
 data class SeasonPalette(val name: String, val icon: ImageVector, val accent: Color, val background: List<Color>)
 data class ShiftPalette(val container: Color, val content: Color)
@@ -56,15 +57,17 @@ internal fun ShiftColorOption.palette(isDark: Boolean = false): ShiftPalette =
         ShiftColorOption.PINK -> if (isDark) ShiftPalette(Color(0xFF3A1025), Color(0xFFF06292)) else ShiftPalette(Color(0xFFFFE0EC), Color(0xFFA62D61))
     }
 
-internal fun ShiftColorOption.label(): String =
-    when (this) {
-        ShiftColorOption.BLUE -> "蓝"
-        ShiftColorOption.INDIGO -> "靛"
-        ShiftColorOption.GREEN -> "绿"
-        ShiftColorOption.RED -> "红"
-        ShiftColorOption.ORANGE -> "橙"
-        ShiftColorOption.GRAY -> "灰"
-        ShiftColorOption.PURPLE -> "紫"
-        ShiftColorOption.PINK -> "粉"
+internal fun ShiftColorOption.label(): String {
+    val en = isEnglishAppLocale()
+    return when (this) {
+        ShiftColorOption.BLUE -> if (en) "Blue" else "蓝"
+        ShiftColorOption.INDIGO -> if (en) "Indigo" else "靛"
+        ShiftColorOption.GREEN -> if (en) "Green" else "绿"
+        ShiftColorOption.RED -> if (en) "Red" else "红"
+        ShiftColorOption.ORANGE -> if (en) "Orange" else "橙"
+        ShiftColorOption.GRAY -> if (en) "Gray" else "灰"
+        ShiftColorOption.PURPLE -> if (en) "Purple" else "紫"
+        ShiftColorOption.PINK -> if (en) "Pink" else "粉"
     }
+}
 

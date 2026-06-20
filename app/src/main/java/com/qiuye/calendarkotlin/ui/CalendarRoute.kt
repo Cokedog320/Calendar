@@ -361,7 +361,7 @@ private fun CalendarScreen(
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = uiState.currentMonth.toString(),
+                                text = uiState.currentMonth.format(shortMonthFormatter()),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = palette.accent,
                             )

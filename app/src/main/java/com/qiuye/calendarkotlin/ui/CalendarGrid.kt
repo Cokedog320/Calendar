@@ -280,6 +280,6 @@ private fun ShiftDefinition.monthGridLabel(): String = when (id) {
     "2" -> if (isEnglishAppLocale()) "Night" else "夜"
     "3" -> if (isEnglishAppLocale()) "Off" else "休"
     "vacation" -> if (isEnglishAppLocale()) "Leave" else "假"
-    "business_trip" -> if (isEnglishAppLocale()) "Trip" else "出"
+    "business_trip" -> if (isEnglishAppLocale()) "Trip" else "差"
     else -> name.take(2)
 }

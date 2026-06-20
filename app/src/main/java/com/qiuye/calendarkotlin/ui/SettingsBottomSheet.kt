@@ -527,7 +527,7 @@ private fun PatternEditorCard(
             OutlinedTextField(
                 value = shift.name,
                 onValueChange = {
-                    if (it.length <= 8) {
+                    if (it.length <= 20) {
                         val normalizedName = normalizeProfileName(it)
                         val updatedShift =
                             if (shift.isBuiltInShift() && normalizedName != shift.name) {

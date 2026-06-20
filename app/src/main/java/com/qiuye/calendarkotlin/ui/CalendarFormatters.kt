@@ -31,6 +31,11 @@ internal fun pickerMonthFormatter(): DateTimeFormatter = when {
     else -> DateTimeFormatter.ofPattern("yyyy年MM月", Locale.CHINA)
 }
 
+internal fun shortMonthFormatter(): DateTimeFormatter = when {
+    isEnglishAppLocale() -> DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH)
+    else -> DateTimeFormatter.ofPattern("yyyy-MM", Locale.CHINA)
+}
+
 internal fun weekdayLabels(): List<String> = when {
     isEnglishAppLocale() -> listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     else -> listOf("一", "二", "三", "四", "五", "六", "日")
