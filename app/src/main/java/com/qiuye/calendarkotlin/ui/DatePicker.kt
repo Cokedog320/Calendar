@@ -42,9 +42,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.qiuye.calendarkotlin.R
 import com.qiuye.calendarkotlin.domain.parseStorageDateOrNull
+import com.qiuye.calendarkotlin.ui.theme.isEnglishAppLocale
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
@@ -59,13 +64,13 @@ fun DateJumpButton(
         onClick = { isPickerVisible = true },
         modifier = modifier.testTag("btn_date_jump"),
     ) {
-        Icon(Icons.Rounded.EditCalendar, contentDescription = "跳转日期")
+        Icon(Icons.Rounded.EditCalendar, contentDescription = stringResource(R.string.jump_to_date))
     }
 
     if (isPickerVisible) {
         ChineseDatePickerBottomSheet(
             initialDate = LocalDate.now(),
-            title = "跳转日期",
+            title = stringResource(R.string.jump_to_date),
             onDismiss = { isPickerVisible = false },
             onConfirm = { pickedDate ->
                 onDatePicked(pickedDate)
@@ -99,13 +104,13 @@ internal fun DatePickerField(
                     .weight(1f)
                     .thenTestTag(testTagPrefix?.let { "${it}_open" }),
             ) {
-                Text(if (value.isBlank()) "选择日期" else value)
+                Text(if (value.isBlank()) stringResource(R.string.select_date) else value)
             }
             OutlinedButton(
                 onClick = onClear,
                 modifier = Modifier.thenTestTag(testTagPrefix?.let { "${it}_clear" }),
             ) {
-                Text("清空")
+                Text(stringResource(R.string.clear))
             }
         }
     }
@@ -116,7 +121,7 @@ internal fun DatePickerField(
             title = label,
             onDismiss = { isPickerVisible = false },
             onConfirm = { pickedDate ->
-                onPick(pickedDate.format(shortDateFormatter))
+                onPick(pickedDate.format(shortDateFormatter()))
                 isPickerVisible = false
             },
         )
@@ -175,13 +180,13 @@ private fun ChineseDatePickerBottomSheet(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = selectedDate.format(fullDateFormatter),
+                        text = selectedDate.format(fullDateFormatter()),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Rounded.Close, contentDescription = "关闭")
+                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.close))
                 }
             }
 
@@ -209,7 +214,7 @@ private fun ChineseDatePickerBottomSheet(
                     WheelPicker(
                         values = months,
                         selectedValue = selectedMonth,
-                        label = ::chineseMonthName,
+                        label = ::monthWheelName,
                         onValueSelected = { selectedMonth = it },
                         modifier = Modifier
                             .weight(1f)
@@ -218,7 +223,7 @@ private fun ChineseDatePickerBottomSheet(
                     WheelPicker(
                         values = days,
                         selectedValue = selectedDay.coerceAtMost(dayCount),
-                        label = ::chineseDayName,
+                        label = ::dayWheelName,
                         onValueSelected = { selectedDay = it },
                         modifier = Modifier
                             .weight(1f)
@@ -232,14 +237,14 @@ private fun ChineseDatePickerBottomSheet(
                 horizontalArrangement = Arrangement.End,
             ) {
                 OutlinedButton(onClick = onDismiss) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 TextButton(
                     onClick = { onConfirm(selectedDate) },
                     modifier = Modifier.testTag("btn_date_confirm"),
                 ) {
-                    Text("确定", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.confirm), fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -340,7 +345,19 @@ private data class WheelScrollPosition(
     val isScrolling: Boolean,
 )
 
-private fun chineseMonthName(month: Int): String = "${chineseNumber(month)}月"
+private fun monthWheelName(month: Int): String =
+    if (isEnglishAppLocale()) {
+        java.time.Month.of(month).getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
+    } else {
+        "${chineseNumber(month)}月"
+    }
+
+private fun dayWheelName(day: Int): String =
+    if (isEnglishAppLocale()) {
+        day.toString()
+    } else {
+        chineseDayName(day)
+    }
 
 private fun chineseDayName(day: Int): String = when (day) {
     in 1..10 -> "${chineseNumber(day)}日"
@@ -367,5 +384,3 @@ private fun chineseNumber(value: Int): String = when (value) {
     12 -> "十二"
     else -> value.toString()
 }
-
-

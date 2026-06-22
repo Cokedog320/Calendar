@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBackIos
@@ -21,8 +22,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.qiuye.calendarkotlin.R
 import java.time.YearMonth
 
 @Composable
@@ -49,42 +53,51 @@ fun MonthHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp),
+            ) {
                 Text(
-                    text = month.format(monthFormatter),
+                    text = month.format(monthFormatter()),
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.testTag("month_title"),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "按月查看排班节奏",
+                    text = stringResource(R.string.view_schedule_by_month),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.wrapContentWidth(align = Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 IconButton(
                     onClick = onOpenSelectedDayDetail,
                     enabled = isDayDetailEnabled,
                     modifier = Modifier.testTag("btn_day_detail"),
                 ) {
-                    Icon(Icons.Rounded.EditNote, contentDescription = "编辑选中日期")
+                    Icon(Icons.Rounded.EditNote, contentDescription = stringResource(R.string.edit_selected_date))
                 }
                 TextButton(
                     onClick = onToday,
                     modifier = Modifier.testTag("btn_today"),
                 ) {
-                    Text("今天", color = accentColor)
+                    Text(stringResource(R.string.today), color = accentColor)
                 }
                 IconButton(onClick = onPreviousMonth) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, contentDescription = "上一个月")
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, contentDescription = stringResource(R.string.prev_month))
                 }
                 IconButton(onClick = onNextMonth) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowForwardIos, contentDescription = "下一个月")
+                    Icon(Icons.AutoMirrored.Rounded.ArrowForwardIos, contentDescription = stringResource(R.string.next_month))
                 }
             }
         }
     }
 }
-
-

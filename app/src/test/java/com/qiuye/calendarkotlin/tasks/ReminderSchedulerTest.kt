@@ -37,9 +37,9 @@ class ReminderSchedulerTest : BaseUnitTest() {
         scheduler.schedule(reminder)
         
         // Then
-        val scheduledAlarm = shadowAlarmManager.nextScheduledAlarm
+        val scheduledAlarm = shadowAlarmManager.peekNextScheduledAlarm()
         assertNotNull(scheduledAlarm)
-        assertEquals(triggerTime, scheduledAlarm!!.triggerAtTime)
+        assertEquals(triggerTime, scheduledAlarm!!.getTriggerAtMs())
     }
 
     @Test
@@ -52,7 +52,7 @@ class ReminderSchedulerTest : BaseUnitTest() {
         scheduler.schedule(reminder)
         
         // Then
-        val scheduledAlarm = shadowAlarmManager.nextScheduledAlarm
+        val scheduledAlarm = shadowAlarmManager.peekNextScheduledAlarm()
         assertNull("Should not schedule alarm for completed reminder", scheduledAlarm)
     }
 
@@ -66,7 +66,7 @@ class ReminderSchedulerTest : BaseUnitTest() {
         scheduler.schedule(reminder)
         
         // Then
-        val scheduledAlarm = shadowAlarmManager.nextScheduledAlarm
+        val scheduledAlarm = shadowAlarmManager.peekNextScheduledAlarm()
         assertNull("Should not schedule alarm for past reminder", scheduledAlarm)
     }
 
@@ -77,12 +77,12 @@ class ReminderSchedulerTest : BaseUnitTest() {
         val reminder = ReminderEntity(id = 4L, title = "To Cancel", note = "", scheduledAtMillis = triggerTime, isCompleted = false, createdAtMillis = 0L, updatedAtMillis = 0L)
         scheduler.schedule(reminder)
         
-        assertNotNull(shadowAlarmManager.nextScheduledAlarm)
+        assertNotNull(shadowAlarmManager.peekNextScheduledAlarm())
         
         // Act: Cancel
         scheduler.cancel(4L)
         
         // The shadow removes it
-        assertNull(shadowAlarmManager.nextScheduledAlarm)
+        assertNull(shadowAlarmManager.peekNextScheduledAlarm())
     }
 }

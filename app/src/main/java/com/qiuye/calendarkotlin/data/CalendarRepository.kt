@@ -10,6 +10,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.qiuye.calendarkotlin.model.CalendarData
 import com.qiuye.calendarkotlin.model.ShiftDefinition
 import com.qiuye.calendarkotlin.model.ShiftProfile
+import com.qiuye.calendarkotlin.model.businessTripShift
+import com.qiuye.calendarkotlin.model.vacationShift
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -209,8 +211,8 @@ class CalendarRepository(
                         name = legacy.name,
                         cycleStartDate = legacy.cycleStartDate,
                         cycleEndDate = legacy.cycleEndDate,
-                        pattern = legacy.pattern,
-                        overrides = legacy.overrides
+                        pattern = legacy.pattern.normalizeIdsByNameAndColor(),
+                        overrides = legacy.overrides.normalizeBuiltinOverrideColors()
                     )
                 )
             }
@@ -240,7 +242,7 @@ class CalendarRepository(
                     cycleStartDate = cycleStartDate,
                     cycleEndDate = cycleEndDate,
                     pattern = pattern,
-                    overrides = overrides
+                    overrides = overrides.normalizeBuiltinOverrideColors()
                 )
             )
         }
@@ -257,6 +259,7 @@ class CalendarRepository(
         return runCatching { json.decodeFromString<List<ShiftDefinition>>(raw) }
             .getOrElse { CalendarData().pattern }
             .ifEmpty { CalendarData().pattern }
+            .normalizeIdsByNameAndColor()
     }
 
     private fun decodeNotes(preferences: Preferences): Map<String, String> {
@@ -270,6 +273,24 @@ class CalendarRepository(
         return runCatching { json.decodeFromString<Map<String, ShiftDefinition>>(raw) }
             .getOrElse { emptyMap() }
     }
+
+    private fun List<ShiftDefinition>.normalizeIdsByNameAndColor(): List<ShiftDefinition> {
+        val firstIdBySignature = mutableMapOf<String, String>()
+        return map { shift ->
+            val signature = "${shift.name}\u0000${shift.color.name}"
+            val normalizedId = firstIdBySignature.getOrPut(signature) { shift.id }
+            if (normalizedId == shift.id) shift else shift.copy(id = normalizedId)
+        }
+    }
+
+    private fun Map<String, ShiftDefinition>.normalizeBuiltinOverrideColors(): Map<String, ShiftDefinition> =
+        mapValues { (_, shift) ->
+            when (shift.id) {
+                vacationShift.id -> shift.copy(color = vacationShift.color)
+                businessTripShift.id -> shift.copy(color = businessTripShift.color)
+                else -> shift
+            }
+        }
 }
 
 @Serializable
@@ -282,5 +303,3 @@ private data class LegacyShiftProfile(
     val overrides: Map<String, ShiftDefinition> = emptyMap(),
     val notes: Map<String, String> = emptyMap(),
 )
-
-

@@ -30,6 +30,14 @@
   - 重构了主页标题栏，主标题直观展示当前处于活动状态的排班方案名，并利用对称平衡（Symmetric Spacer）技术在数学上实现了主标题文本的绝对动态居中，避免了下拉箭头带来的视觉偏斜。
   - 移除了 UI 部分所有硬编码中文，整合入 `strings.xml` 进行完全国际化。
   - `CalendarRepository` 彻底移除硬编码默认参数，规范化了生命周期与测试构造。
+- 🌐 **英文界面日期格式优化与六行布局适配**：
+  - 顶栏月份由全称改为缩写（如 "September 2026" → "Sep 2026"），消除长月份名对右侧上/下月箭头的挤压。
+  - 副标题月份标签保留全称（"September 2026"），兼顾视觉美观与紧凑性。
+  - 详情页由数字格式改为美式短格式 + 中点分隔星期（如 "2026-09-21 Sunday" → "Sep 21, 2026 · Sunday"）。
+  - 当月历恰好呈六行时，英文胶囊模式下自动收窄日期与胶囊间距（10dp → 4dp），避免底部提示点被挤压；五行及以下布局完全不变。
+- 🚀 **冷启动 ANR 风险修复**：
+  - 移除 `MainActivity.onCreate` 中的 `runBlocking` 同步阻塞读取，改用 `collectAsState` 以系统当前 locale 作初值异步加载，消除低端机 ANR 隐患。
+  - 在 `LaunchedEffect` 内加入相等判断，避免重复调用 `AppCompatDelegate.setApplicationLocales`。
 - 📌 **备忘录中心交互重构与置顶头部**：
   - **置顶头部标题栏**：固定了“备忘录中心”的标题与关闭按钮，无论列表如何滚动，用户随时可以方便地点击关闭或划走面板。
   - **卡片直观勾选与删除**：在勾选某条备注左侧的复选框后，卡片右侧会动态显示删除（垃圾桶）按钮，点击可直接进行二次确认删除，无需像以前一样繁琐地滑回屏幕最顶端点击删除。
@@ -115,6 +123,14 @@ This repository serves as a reliable, clean, and highly robust daily utility too
   - Redesigned the home screen Top Bar: the main title displays the active profile name, while utilizing a Symmetric Spacer alignment technique to guarantee perfect visual centering regardless of text length.
   - Removed all hardcoded Chinese strings inside UI layers, centralizing them in `strings.xml` for complete i18n.
   - Removed default parameter hardcoding from the `CalendarRepository` constructor.
+- 🌐 **English Locale Date Format & Six-Row Layout Adjustments**:
+  - Top bar month uses short abbreviation (e.g., "September 2026" → "Sep 2026") to prevent long month names from compressing the prev/next arrow buttons.
+  - Subtitle month label retains full name ("September 2026") for visual aesthetics.
+  - Detail page switches from numeric format to American short format with a middot separator (e.g., "2026-09-21 Sunday" → "Sep 21, 2026 · Sunday").
+  - When the month grid renders exactly six rows, the English capsule layout automatically tightens the spacing between date number and capsule (10dp → 4dp) so status dots at the bottom are not squeezed; five-row and shorter layouts remain unchanged.
+- 🚀 **Cold-Start ANR Risk Fix**:
+  - Removed the `runBlocking` synchronous blocking read from `MainActivity.onCreate`, switching to `collectAsState` with the current system locale as the initial value for asynchronous loading, eliminating ANR risk on low-end devices.
+  - Added an equality check inside `LaunchedEffect` to avoid redundant `AppCompatDelegate.setApplicationLocales` calls.
 - 📌 **Notes Center Layout & Deletion Interaction Refactoring**:
   - **Sticky Top Bar**: Extracted the "Notes Center" title and close buttons outside the scrollable `LazyColumn` for easier access.
   - **Localized Checked Deletion**: Checking a note card's left-side selector now dynamically reveals a red delete button on the card itself, enabling instant on-the-spot deletion.

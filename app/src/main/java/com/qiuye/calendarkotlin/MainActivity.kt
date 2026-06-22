@@ -9,6 +9,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -32,9 +34,12 @@ import androidx.navigation.navArgument
 import com.qiuye.calendarkotlin.domain.ChineseCalendarInfo
 import com.qiuye.calendarkotlin.ui.CalendarRoute
 import com.qiuye.calendarkotlin.ui.theme.CalendarKotlinTheme
+import com.qiuye.calendarkotlin.ui.theme.LanguageMode
+import com.qiuye.calendarkotlin.ui.theme.LanguagePreferences
 import com.qiuye.calendarkotlin.ui.theme.ThemeMode
 import com.qiuye.calendarkotlin.ui.theme.ThemePreferences
 import com.qiuye.calendarkotlin.ui.theme.resolve
+import com.qiuye.calendarkotlin.ui.theme.toLanguageMode
 import kotlinx.coroutines.launch
 import com.qiuye.calendarkotlin.viewmodel.CalendarViewModel
 import com.qiuye.calendarkotlin.tasks.TasksGraph
@@ -48,9 +53,10 @@ import com.qiuye.calendarkotlin.diary.ui.DiaryEditScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-public class MainActivity : ComponentActivity() {
+public class MainActivity : AppCompatActivity() {
     private val openReminderIdFlow = MutableStateFlow<Long?>(null)
     private val themePreferences by lazy { ThemePreferences(applicationContext) }
+    private val languagePreferences by lazy { LanguagePreferences(applicationContext) }
 
     private val calendarViewModel by viewModels<CalendarViewModel> {
         CalendarViewModel.factory(applicationContext)
@@ -76,7 +82,17 @@ public class MainActivity : ComponentActivity() {
 
         setContent {
             val themeMode by themePreferences.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+            val languageMode by languagePreferences.languageMode.collectAsState(
+                initial = AppCompatDelegate.getApplicationLocales().toLanguageMode()
+            )
             val isDark = themeMode.resolve(isSystemInDarkTheme())
+
+            LaunchedEffect(languageMode) {
+                val currentMode = AppCompatDelegate.getApplicationLocales().toLanguageMode()
+                if (currentMode != languageMode) {
+                    AppCompatDelegate.setApplicationLocales(languageMode.resolve())
+                }
+            }
 
             CalendarKotlinTheme(darkTheme = isDark) {
                 MainNavigation(
@@ -87,6 +103,12 @@ public class MainActivity : ComponentActivity() {
                     onThemeModeChange = { mode ->
                         lifecycleScope.launch {
                             themePreferences.setThemeMode(mode)
+                        }
+                    },
+                    languageMode = languageMode,
+                    onLanguageModeChange = { mode ->
+                        lifecycleScope.launch {
+                            languagePreferences.setLanguageMode(mode)
                         }
                     },
                     isDark = isDark,
@@ -114,6 +136,8 @@ private fun MainNavigation(
     calendarViewModel: CalendarViewModel,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
+    languageMode: LanguageMode,
+    onLanguageModeChange: (LanguageMode) -> Unit,
     isDark: Boolean,
     tasksViewModel: TasksViewModel = viewModel(factory = TasksViewModel.factory(LocalContext.current)),
     diaryViewModel: DiaryViewModel = viewModel(factory = DiaryViewModel.factory(LocalContext.current)),
@@ -177,6 +201,8 @@ private fun MainNavigation(
                 diaryViewModel = diaryViewModel,
                 themeMode = themeMode,
                 onThemeModeChange = onThemeModeChange,
+                languageMode = languageMode,
+                onLanguageModeChange = onLanguageModeChange,
                 isDark = isDark,
                 onNavigateToEditTask = { reminderId ->
                     navController.navigate(ReminderRoutes.edit(reminderId))

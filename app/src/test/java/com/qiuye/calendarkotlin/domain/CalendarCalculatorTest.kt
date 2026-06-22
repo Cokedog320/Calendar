@@ -128,7 +128,7 @@ class CalendarCalculatorTest : BaseUnitTest() {
         val cell = CalendarCalculator.getDayCell(date, data)
 
         assertEquals("休假", cell.shift!!.name)
-        assertEquals(ShiftColorOption.GREEN, cell.shift!!.color)
+        assertEquals(ShiftColorOption.PINK, cell.shift.color)
     }
 
     @Test
@@ -151,8 +151,8 @@ class CalendarCalculatorTest : BaseUnitTest() {
         val cell = CalendarCalculator.getDayCell(date, data)
 
         assertEquals("出差", cell.shift!!.name)
-        assertEquals("business_trip", cell.shift!!.id)
-        assertEquals(ShiftColorOption.ORANGE, cell.shift!!.color)
+        assertEquals("business_trip", cell.shift.id)
+        assertEquals(ShiftColorOption.ORANGE, cell.shift.color)
     }
 
     @Test
