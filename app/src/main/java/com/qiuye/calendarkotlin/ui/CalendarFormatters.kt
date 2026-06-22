@@ -5,12 +5,12 @@ import java.util.Locale
 import com.qiuye.calendarkotlin.ui.theme.isEnglishAppLocale
 
 internal fun monthFormatter(): DateTimeFormatter = when {
-    isEnglishAppLocale() -> DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)
+    isEnglishAppLocale() -> DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH)
     else -> DateTimeFormatter.ofPattern("yyyy年 M月", Locale.CHINA)
 }
 
 internal fun fullDateFormatter(): DateTimeFormatter = when {
-    isEnglishAppLocale() -> DateTimeFormatter.ofPattern("yyyy-MM-dd EEEE", Locale.ENGLISH)
+    isEnglishAppLocale() -> DateTimeFormatter.ofPattern("MMM d, yyyy · EEEE", Locale.ENGLISH)
     else -> DateTimeFormatter.ofPattern("yyyy年MM月dd日 EEEE", Locale.CHINA)
 }
 
@@ -32,7 +32,7 @@ internal fun pickerMonthFormatter(): DateTimeFormatter = when {
 }
 
 internal fun shortMonthFormatter(): DateTimeFormatter = when {
-    isEnglishAppLocale() -> DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH)
+    isEnglishAppLocale() -> DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)
     else -> DateTimeFormatter.ofPattern("yyyy-MM", Locale.CHINA)
 }
 

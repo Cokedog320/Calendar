@@ -74,6 +74,7 @@ fun CalendarGrid(
                     )
                 }
             }
+            val isSixRows = dayCells.chunked(7).size == 6
             dayCells.chunked(7).forEach { week ->
                 Row(
                     modifier = Modifier.weight(1f),
@@ -85,6 +86,7 @@ fun CalendarGrid(
                             accentColor = seasonAccent,
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                             isDark = isDark,
+                            isCompact = isSixRows,
                             onClick = { onSelectDate(dayCell.date) },
                         )
                     }
@@ -100,6 +102,7 @@ private fun DayCellCard(
     accentColor: Color,
     isDark: Boolean,
     modifier: Modifier = Modifier,
+    isCompact: Boolean = false,
     onClick: () -> Unit,
 ) {
     val shiftPalette = dayCell.shift?.color?.palette(isDark = isDark)
@@ -191,7 +194,7 @@ private fun DayCellCard(
                     }
 
                     // Spacer between date number and shift badge
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(if (isCompact) 4.dp else 10.dp))
 
                     // Shift badge capsule
                     if (dayCell.shift != null && shiftPalette != null) {
@@ -372,7 +375,22 @@ private fun ShiftDefinition.monthGridLabel(): String = when (id) {
     "3" -> if (isEnglishAppLocale()) "Off" else "休"
     "vacation" -> if (isEnglishAppLocale()) "😎" else "假"
     "business_trip" -> if (isEnglishAppLocale()) "Trip" else "差"
-    else -> name.take(2)
+    else -> if (isEnglishAppLocale()) englishAbbreviation(name) else name.take(2)
+}
+
+private fun englishAbbreviation(name: String): String {
+    val trimmed = name.trim()
+    if (trimmed.isEmpty()) return ""
+    return if (trimmed.contains(" ")) {
+        trimmed.split(Regex("\\s+"))
+            .mapNotNull { it.firstOrNull()?.uppercaseChar() }
+            .joinToString("")
+            .take(3)
+    } else if (trimmed.length > 3) {
+        trimmed.take(3).replaceFirstChar { it.uppercase() }
+    } else {
+        trimmed.replaceFirstChar { it.uppercase() }
+    }
 }
 
 @Composable
