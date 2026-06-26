@@ -1,4 +1,4 @@
-# Calendar | 智能排班备忘日历
+# ShiftAssistant | 智能排班备忘日历
 
 [English Version](#english-version) | [中文版](#中文版)
 
@@ -75,7 +75,7 @@
 
 ## English Version
 
-A fully-featured local Android Calendar application designed for shift rotation management, daily note taking, and scheduled reminder alerts.
+A fully-featured local Android ShiftAssistant application designed for shift rotation management, daily note taking, and scheduled reminder alerts.
 
 This repository serves as a reliable, clean, and highly robust daily utility tool that prioritizes off-line usability, punctual alarm scheduling, and local data persistence.
 
