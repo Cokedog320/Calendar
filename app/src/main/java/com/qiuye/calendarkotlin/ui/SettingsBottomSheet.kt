@@ -439,7 +439,7 @@ fun SettingsBottomSheet(
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            itemsIndexed(pattern, key = { _, item -> item.id }) { index, shift ->
+            itemsIndexed(pattern, key = { index, item -> "${index}_${item.id}" }) { index, shift ->
                 PatternEditorCard(
                     index = index,
                     shift = shift,
