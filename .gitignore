@@ -13,3 +13,7 @@ app/build/
 .idea/
 .kotlin/
 .gradle-home/
+
+# Keystore properties and keys
+*.jks
+keystore.properties
