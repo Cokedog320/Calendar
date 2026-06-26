@@ -1,4 +1,4 @@
-# Copilot instructions for Calendar (Android)
+# Copilot instructions for ShiftAssistant (Android)
 
 ## Build, test, and lint commands
 

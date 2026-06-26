@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "calendar-Kotlin"
+rootProject.name = "ShiftAssistant"
 include(":app")
