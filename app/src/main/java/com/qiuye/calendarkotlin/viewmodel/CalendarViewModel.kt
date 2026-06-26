@@ -11,6 +11,7 @@ import com.qiuye.calendarkotlin.data.CalendarDataStore
 import com.qiuye.calendarkotlin.data.CalendarRepository
 import com.qiuye.calendarkotlin.domain.CalendarCalculator
 import com.qiuye.calendarkotlin.domain.ChineseCalendarInfo
+import com.qiuye.calendarkotlin.domain.normalizeProfileName
 import com.qiuye.calendarkotlin.domain.parseStorageDateOrNull
 import com.qiuye.calendarkotlin.domain.toStorageKey
 import com.qiuye.calendarkotlin.model.CalendarData
@@ -441,7 +442,7 @@ class CalendarViewModel internal constructor(
             val updatedProfiles = current.profiles.map { profile ->
                 if (profile.id == current.activeProfileId) {
                     profile.copy(
-                        name = profileName.trim().ifBlank { profile.name },
+                        name = normalizeProfileName(profileName).trim().ifBlank { profile.name },
                         cycleStartDate = normalizedCycleStartDate,
                         cycleEndDate = normalizedCycleEndDate,
                         pattern = normalizedPattern

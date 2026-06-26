@@ -247,9 +247,9 @@ fun SettingsBottomSheet(
 
                         OutlinedTextField(
                             value = profileName,
-                            onValueChange = { 
+onValueChange = {
                                 if (it.length <= 16) {
-                                    profileName = it
+                                    profileName = normalizeProfileName(it).trim()
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().testTag("field_profile_name"),

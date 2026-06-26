@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.qiuye.calendarkotlin.R
+import com.qiuye.calendarkotlin.ui.theme.isEnglishAppLocale
 import java.time.YearMonth
 
 @Composable
@@ -72,7 +73,7 @@ fun MonthHeader(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 16.dp),
+                    modifier = if (isEnglishAppLocale()) Modifier.padding(start = 16.dp) else Modifier,
                 )
             }
             Row(
