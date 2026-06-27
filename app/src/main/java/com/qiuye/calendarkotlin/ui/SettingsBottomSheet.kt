@@ -51,7 +51,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -249,17 +248,12 @@ fun SettingsBottomSheet(
 
                         OutlinedTextField(
                             value = profileName,
-                            onValueChange = { value -> profileName = value },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("field_profile_name")
-                                .onFocusChanged { focusState ->
-                                    if (!focusState.isFocused) {
-                                        normalizeProfileNameInput(profileName, maxLength = 16)?.let {
-                                            profileName = it
-                                        }
-                                    }
-                                },
+                            onValueChange = { value ->
+                                normalizeProfileNameInput(value, maxLength = 16)?.let { normalized ->
+                                    profileName = normalized
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("field_profile_name"),
                             label = { Text(stringResource(R.string.profile_name_label)) },
                             singleLine = true,
                             maxLines = 1
@@ -487,7 +481,7 @@ fun SettingsBottomSheet(
                     TextButton(
                         onClick = {
                             onSave(
-                                normalizeProfileNameInput(profileName, maxLength = 16) ?: profileName,
+                                profileName,
                                 startDate.ifBlank { null },
                                 endDate.ifBlank { null },
                                 pattern.toList().ifEmpty { defaultPattern },
@@ -533,25 +527,21 @@ private fun PatternEditorCard(
             }
             OutlinedTextField(
                 value = shift.name,
-                onValueChange = { value -> onUpdate(shift.copy(name = value)) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { focusState ->
-                        if (!focusState.isFocused) {
-                            normalizeProfileNameInput(shift.name, maxLength = 20)?.let { normalizedName ->
-                                val updatedShift =
-                                    if (shift.isBuiltInShift() && normalizedName != shift.name) {
-                                        shift.copy(
-                                            id = UUID.randomUUID().toString(),
-                                            name = normalizedName,
-                                        )
-                                    } else {
-                                        shift.copy(name = normalizedName)
-                                    }
-                                onUpdate(updatedShift)
+                onValueChange = { value ->
+                    normalizeProfileNameInput(value, maxLength = 20)?.let { normalizedName ->
+                        val updatedShift =
+                            if (shift.isBuiltInShift() && normalizedName != shift.name) {
+                                shift.copy(
+                                    id = UUID.randomUUID().toString(),
+                                    name = normalizedName,
+                                )
+                            } else {
+                                shift.copy(name = normalizedName)
                             }
-                        }
-                    },
+                        onUpdate(updatedShift)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.shift_name_label)) },
                 singleLine = true,
                 maxLines = 1
